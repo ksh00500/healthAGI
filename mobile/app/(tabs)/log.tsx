@@ -25,14 +25,17 @@ import {
   parseMealText,
   parseWorkoutText,
   searchExercises,
+  suggestRecoveryForSession,
 } from '@/api/endpoints';
 import type {
   Exercise,
   Meal,
   MealItemInput,
+  SuggestedTimer,
   WorkoutSession,
   WorkoutSetInput,
 } from '@/api/types';
+import { useTimers } from '@/features/timers/store';
 import { isoDay, sessionVolumeKg } from '@/features/workouts/helpers';
 
 type Tab = 'workout' | 'meal';
@@ -76,6 +79,11 @@ function WorkoutPanel() {
   const [saving, setSaving] = useState(false);
   const [aiInput, setAiInput] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestedTimer[] | null>(null);
+  const [suggestionsBusy, setSuggestionsBusy] = useState(false);
+  const startTimer = useTimers((s) => s.start);
+  const muscleGroups = useTimers((s) => s.muscleGroups);
+  const loadFromLocal = useTimers((s) => s.loadFromLocal);
 
   const refresh = async () => {
     try {
@@ -127,16 +135,44 @@ function WorkoutPanel() {
     });
     setSaving(true);
     try {
-      await createWorkoutSession({ notes: notes || undefined, sets: setInputs });
+      const saved = await createWorkoutSession({
+        notes: notes || undefined,
+        sets: setInputs,
+      });
       setDrafts([]);
       setNotes('');
       await refresh();
+      // Fire-and-forget: ask the LLM for per-muscle recovery timers.
+      setSuggestionsBusy(true);
+      suggestRecoveryForSession(saved.id)
+        .then(async (res) => {
+          if (res.suggestions.length > 0) {
+            await loadFromLocal();
+            setSuggestions(res.suggestions);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => setSuggestionsBusy(false));
     } catch {
       Alert.alert('저장 실패', '서버 연결 확인');
     } finally {
       setSaving(false);
     }
   };
+
+  const acceptAllSuggestions = async () => {
+    if (!suggestions) return;
+    for (const s of suggestions) {
+      try {
+        await startTimer(s.muscle_group_id, Math.round(s.hours * 60));
+      } catch {
+        // ignore individual failures; user can still set timers manually
+      }
+    }
+    setSuggestions(null);
+  };
+
+  const dismissSuggestions = () => setSuggestions(null);
 
   const onDeleteSession = async (id: string) => {
     try {
@@ -310,7 +346,71 @@ function WorkoutPanel() {
       </ScrollView>
 
       <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={addExercise} />
+      <RecoverySuggestionsModal
+        suggestions={suggestions}
+        busy={suggestionsBusy}
+        muscleGroupName={(id) =>
+          muscleGroups.find((g) => g.id === id)?.display_name_ko ?? id
+        }
+        onAccept={acceptAllSuggestions}
+        onDismiss={dismissSuggestions}
+      />
     </KeyboardAvoidingView>
+  );
+}
+
+function RecoverySuggestionsModal({
+  suggestions,
+  busy,
+  muscleGroupName,
+  onAccept,
+  onDismiss,
+}: {
+  suggestions: SuggestedTimer[] | null;
+  busy: boolean;
+  muscleGroupName: (id: string) => string;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const visible = busy || (suggestions !== null && suggestions.length > 0);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.suggestSheet}>
+          <Text style={styles.suggestTitle}>회복 타이머 제안</Text>
+          {busy ? (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <Text style={styles.dim}>AI가 분석 중…</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.dim}>운동 강도를 보고 다음 회복 시간을 제안해요.</Text>
+              {(suggestions ?? []).map((s) => (
+                <View key={s.muscle_group_id} style={styles.suggestRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.suggestMuscle}>
+                      {muscleGroupName(s.muscle_group_id)}
+                    </Text>
+                    {s.reason ? (
+                      <Text style={styles.suggestReason}>{s.reason}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.suggestHours}>{s.hours}h</Text>
+                </View>
+              ))}
+              <View style={styles.suggestActions}>
+                <Pressable style={styles.outlineBtn} onPress={onDismiss}>
+                  <Text style={styles.outlineBtnText}>건너뛰기</Text>
+                </Pressable>
+                <Pressable style={[styles.primaryBtn, { flex: 1 }]} onPress={onAccept}>
+                  <Text style={styles.primaryBtnText}>모두 시작</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -751,6 +851,30 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   photoBtnText: { color: '#fff', fontWeight: '600' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  suggestSheet: {
+    backgroundColor: '#16191e',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    gap: 10,
+  },
+  suggestTitle: { color: '#a78bfa', fontSize: 16, fontWeight: '700' },
+  suggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomColor: '#1f242c',
+    borderBottomWidth: 1,
+  },
+  suggestMuscle: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  suggestReason: { color: '#9aa1a8', fontSize: 12, marginTop: 2 },
+  suggestHours: { color: '#fbbf24', fontSize: 16, fontWeight: '700' },
+  suggestActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   pickRow: { padding: 14, paddingHorizontal: 16 },
   pickTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

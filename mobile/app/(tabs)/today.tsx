@@ -1,5 +1,7 @@
+import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -13,11 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   createBodyMetric,
+  generateRecommendations,
   listBodyMetrics,
   listMeals,
+  listTodayRecommendations,
   listWorkoutSessions,
 } from '@/api/endpoints';
-import type { BodyMetric, Meal, WorkoutSession } from '@/api/types';
+import type { BodyMetric, Meal, Recommendation, WorkoutSession } from '@/api/types';
 import { formatRemaining, timerProgress, useTimers } from '@/features/timers/store';
 import { isoDay, sessionVolumeKg } from '@/features/workouts/helpers';
 
@@ -26,21 +30,44 @@ export default function TodayScreen() {
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [latestMetric, setLatestMetric] = useState<BodyMetric | null>(null);
+  const [recs, setRecs] = useState<Recommendation[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
   const [weight, setWeight] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(async () => {
     const day = isoDay();
-    const [s, m, metrics] = await Promise.allSettled([
+    const [s, m, metrics, r] = await Promise.allSettled([
       listWorkoutSessions({ day }),
       listMeals({ day }),
       listBodyMetrics(),
+      listTodayRecommendations(),
     ]);
     if (s.status === 'fulfilled') setSessions(s.value);
     if (m.status === 'fulfilled') setMeals(m.value);
     if (metrics.status === 'fulfilled') setLatestMetric(metrics.value[0] ?? null);
+    if (r.status === 'fulfilled') setRecs(r.value);
   }, []);
+
+  const onGenerateRecs = async (force = false) => {
+    setRecsLoading(true);
+    try {
+      const next = await generateRecommendations(force);
+      setRecs(next);
+    } catch (e) {
+      Alert.alert('추천 생성 실패', String(e));
+    } finally {
+      setRecsLoading(false);
+    }
+  };
+
+  const onAskWhy = (rec: Recommendation) => {
+    const prefill = `"${rec.title}" 이 추천에 대해 더 자세히 설명해줘. 근거: ${
+      rec.rationale ?? rec.body
+    }`;
+    router.push({ pathname: '/(tabs)/ai', params: { prefill } });
+  };
 
   useEffect(() => {
     void loadFromLocal().then(() => sync()).then(refresh);
@@ -97,6 +124,41 @@ export default function TodayScreen() {
             weekday: 'long',
           })}
         </Text>
+
+        <View style={styles.recHeader}>
+          <Text style={styles.recHeading}>오늘의 AI 추천</Text>
+          <Pressable
+            onPress={() => onGenerateRecs(recs.length > 0)}
+            disabled={recsLoading}
+            style={[styles.recRefresh, recsLoading && { opacity: 0.5 }]}
+          >
+            {recsLoading ? (
+              <ActivityIndicator size="small" color="#a78bfa" />
+            ) : (
+              <Text style={styles.recRefreshText}>
+                {recs.length > 0 ? '새로고침' : '생성하기'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+        {recs.length === 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.dim}>
+              AI 추천 카드가 아직 없어요. "생성하기"를 눌러 오늘의 추천을 받아보세요.
+            </Text>
+          </View>
+        ) : (
+          recs.map((r) => (
+            <View key={r.id} style={[styles.card, styles.recCard]}>
+              <Text style={styles.recKind}>{recKindLabel(r.kind)}</Text>
+              <Text style={styles.recTitle}>{r.title}</Text>
+              <Text style={styles.recBody}>{r.body}</Text>
+              <Pressable style={styles.whyBtn} onPress={() => onAskWhy(r)}>
+                <Text style={styles.whyBtnText}>왜? →</Text>
+              </Pressable>
+            </View>
+          ))
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>회복 중인 부위</Text>
@@ -185,6 +247,17 @@ export default function TodayScreen() {
   );
 }
 
+function recKindLabel(kind: Recommendation['kind']): string {
+  switch (kind) {
+    case 'workout_split':
+      return '🏋️ 운동 추천';
+    case 'nutrition_focus':
+      return '🥗 영양 포커스';
+    case 'recovery_check':
+      return '😴 회복 점검';
+  }
+}
+
 function Macro({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.macroCell}>
@@ -198,6 +271,30 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0b0d10' },
   scroll: { padding: 16, paddingBottom: 40 },
   date: { color: '#9aa1a8', fontSize: 13, marginBottom: 12 },
+  recHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  recHeading: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  recRefresh: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#1f1633',
+  },
+  recRefreshText: { color: '#a78bfa', fontSize: 12, fontWeight: '600' },
+  recCard: {
+    backgroundColor: '#1a1330',
+    borderLeftColor: '#a78bfa',
+    borderLeftWidth: 3,
+  },
+  recKind: { color: '#a78bfa', fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  recTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  recBody: { color: '#cbd5e1', fontSize: 14, lineHeight: 20 },
+  whyBtn: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4 },
+  whyBtnText: { color: '#a78bfa', fontSize: 13, fontWeight: '600' },
   card: {
     backgroundColor: '#16191e',
     borderRadius: 12,

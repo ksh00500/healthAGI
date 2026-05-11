@@ -12,6 +12,8 @@ import type {
   ParsedMeal,
   ParsedWorkout,
   Profile,
+  Recommendation,
+  SuggestResponse,
   Timer,
   TimerCreate,
   TokenPair,
@@ -152,4 +154,24 @@ export function parseWorkoutText(text: string): Promise<ParsedWorkout> {
 
 export function parseMealText(text: string): Promise<ParsedMeal> {
   return apiRequest<ParsedMeal>('/meals/parse', { method: 'POST', body: { text } });
+}
+
+// --- Recommendations ---
+
+export function listTodayRecommendations(): Promise<Recommendation[]> {
+  return apiRequest<Recommendation[]>('/recommendations/today');
+}
+
+export function generateRecommendations(force = false): Promise<Recommendation[]> {
+  return apiRequest<Recommendation[]>('/recommendations/generate', {
+    method: 'POST',
+    body: { force },
+  });
+}
+
+export function suggestRecoveryForSession(sessionId: string): Promise<SuggestResponse> {
+  return apiRequest<SuggestResponse>('/timers/suggest', {
+    method: 'POST',
+    body: { session_id: sessionId },
+  });
 }

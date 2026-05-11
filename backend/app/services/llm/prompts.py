@@ -29,11 +29,15 @@ def _decimal(v: Decimal | None) -> str:
     return "?" if v is None else f"{float(v):g}"
 
 
-def _as_utc(dt: datetime) -> datetime:
+def as_utc(dt: datetime) -> datetime:
     """SQLite returns naive datetimes; coerce to UTC so arithmetic with now() works."""
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# Keep the private alias for legacy imports.
+_as_utc = as_utc
 
 
 async def build_system_prompt(session: AsyncSession, user: User) -> str:

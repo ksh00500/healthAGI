@@ -240,6 +240,33 @@ export interface ParsedMeal {
   raw: string;
 }
 
+// --- Recommendations ---
+
+export type RecKind = 'workout_split' | 'nutrition_focus' | 'recovery_check';
+
+export interface Recommendation {
+  id: string;
+  for_date: string;
+  kind: RecKind;
+  title: string;
+  body: string;
+  rationale: string | null;
+  source_context: Record<string, unknown> | null;
+  model: string | null;
+  updated_at: string;
+}
+
+export interface SuggestedTimer {
+  muscle_group_id: string;
+  hours: number;
+  intensity_score: number;
+  reason: string | null;
+}
+
+export interface SuggestResponse {
+  suggestions: SuggestedTimer[];
+}
+
 // --- Photo meal ---
 
 export interface PhotoAnalyzeItem {

@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useLocalSearchParams } from 'expo-router';
+
 import {
   createConversation,
   deleteConversation,
@@ -39,6 +41,8 @@ export default function AIScreen() {
   const listRef = useRef<FlatList<TempMessage>>(null);
   const voiceRecorder = useVoiceRecorder();
   const ttsPlayer = useTTSPlayer();
+  const params = useLocalSearchParams<{ prefill?: string }>();
+  const consumedPrefill = useRef<string | null>(null);
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -70,6 +74,17 @@ export default function AIScreen() {
   useEffect(() => {
     loadActive();
   }, [loadActive]);
+
+  // External screens (e.g. Today recommendations) can deep-link with a
+  // `?prefill=…` query to seed the composer. Consume the param once.
+  useEffect(() => {
+    const text = typeof params.prefill === 'string' ? params.prefill : null;
+    if (text && consumedPrefill.current !== text) {
+      consumedPrefill.current = text;
+      setInput(text);
+      setActiveId(null); // open a fresh conversation for the new question
+    }
+  }, [params.prefill]);
 
   const ensureConversation = async (): Promise<string> => {
     if (activeId) return activeId;

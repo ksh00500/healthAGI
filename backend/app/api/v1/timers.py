@@ -5,11 +5,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, SessionDep
+from app.models.exercise import Exercise
 from app.models.muscle_group import MuscleGroup
 from app.models.recovery_timer import RecoveryTimer
+from app.models.workout import WorkoutSession, WorkoutSet
+from app.schemas.recommendation import SuggestRequest, SuggestResponse, SuggestedTimer
 from app.schemas.timer import TimerCreate, TimerRead, TimerUpdate
+from app.services.recommendations import suggest_recovery_for_session
 
 router = APIRouter(prefix="/timers", tags=["timers"])
 
@@ -115,6 +120,69 @@ async def update_timer(
     await session.commit()
     await session.refresh(timer)
     return timer
+
+
+@router.post("/suggest", response_model=SuggestResponse)
+async def suggest_recovery(
+    payload: SuggestRequest, user: CurrentUser, session: SessionDep
+) -> SuggestResponse:
+    """Ask the LLM for per-muscle recovery durations after a workout.
+
+    Provide either an existing `session_id` (recommended right after saving
+    a session) or a transient `sets` list.
+    """
+    if payload.session_id:
+        ws = await session.scalar(
+            select(WorkoutSession)
+            .options(
+                selectinload(WorkoutSession.sets).selectinload(WorkoutSet.exercise)
+            )
+            .where(
+                WorkoutSession.id == payload.session_id,
+                WorkoutSession.user_id == user.id,
+                WorkoutSession.deleted_at.is_(None),
+            )
+        )
+        if ws is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
+    elif payload.sets:
+        # Build a transient (un-persisted) session with hydrated exercises.
+        ws = WorkoutSession(user_id=user.id, started_at=datetime.now(timezone.utc))
+        ex_rows = await session.scalars(
+            select(Exercise).where(Exercise.id.in_([s.exercise_id for s in payload.sets]))
+        )
+        ex_by_id = {ex.id: ex for ex in ex_rows}
+        for s in payload.sets:
+            if s.exercise_id not in ex_by_id:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    f"unknown exercise id: {s.exercise_id}",
+                )
+            ws.sets.append(
+                WorkoutSet(
+                    exercise_id=s.exercise_id,
+                    set_index=s.set_index,
+                    reps=s.reps,
+                    weight_kg=s.weight_kg,
+                    rpe=s.rpe,
+                    is_warmup=s.is_warmup,
+                )
+            )
+            ws.sets[-1].exercise = ex_by_id[s.exercise_id]
+    else:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "provide session_id or sets"
+        )
+
+    try:
+        out = await suggest_recovery_for_session(session, user, ws)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"LLM suggestion failed: {e}"
+        ) from e
+    return SuggestResponse(
+        suggestions=[SuggestedTimer(**s) for s in out]
+    )
 
 
 @router.delete("/{timer_id}", status_code=status.HTTP_204_NO_CONTENT)
