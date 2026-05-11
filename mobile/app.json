@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "healthAGI",
+    "slug": "healthagi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "healthagi",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.healthagi.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.healthagi.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0d10"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "color": "#0b0d10"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000/v1"
+    }
+  }
+}
