@@ -173,3 +173,68 @@ export interface MealCreate {
   notes?: string;
   items: MealItemInput[];
 }
+
+// --- Chat ---
+
+export type ChatMode = 'text' | 'voice';
+export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface ChatConversation {
+  id: string;
+  title: string | null;
+  mode: ChatMode;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string | null;
+  tool_name: string | null;
+  tool_args: Record<string, unknown> | null;
+  tool_result: Record<string, unknown> | null;
+  model: string | null;
+  created_at: string;
+}
+
+export interface ChatConversationDetail extends ChatConversation {
+  messages: ChatMessage[];
+}
+
+// --- Parse ---
+
+export interface ParsedSet {
+  set_index: number;
+  reps: number | null;
+  weight_kg: string | null;
+  rpe: string | null;
+  is_warmup: boolean;
+}
+
+export interface ParsedExercise {
+  matched_exercise_id: string | null;
+  name: string;
+  sets: ParsedSet[];
+}
+
+export interface ParsedWorkout {
+  exercises: ParsedExercise[];
+  notes: string | null;
+  raw: string;
+}
+
+export interface ParsedMealItem {
+  name: string;
+  serving_g: string | null;
+  kcal: string | null;
+  protein_g: string | null;
+  carbs_g: string | null;
+  fat_g: string | null;
+  confidence: string | null;
+}
+
+export interface ParsedMeal {
+  items: ParsedMealItem[];
+  raw: string;
+}

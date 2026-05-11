@@ -21,6 +21,8 @@ import {
   deleteWorkoutSession,
   listMeals,
   listWorkoutSessions,
+  parseMealText,
+  parseWorkoutText,
   searchExercises,
 } from '@/api/endpoints';
 import type {
@@ -71,6 +73,8 @@ function WorkoutPanel() {
   const [picker, setPicker] = useState(false);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
 
   const refresh = async () => {
     try {
@@ -142,6 +146,57 @@ function WorkoutPanel() {
     }
   };
 
+  const onAiParse = async () => {
+    if (!aiInput.trim()) return;
+    setAiBusy(true);
+    try {
+      const parsed = await parseWorkoutText(aiInput.trim());
+      const ex = parsed.exercises;
+      if (ex.length === 0) {
+        Alert.alert('파싱 결과 없음', '입력 텍스트에서 운동을 찾지 못했어요.');
+        return;
+      }
+      // Resolve each parsed exercise → real Exercise object.
+      const unresolved: string[] = [];
+      const newDrafts: SetDraft[] = [];
+      for (const e of ex) {
+        let exercise: Exercise | null = null;
+        if (e.matched_exercise_id) {
+          const list = await searchExercises(e.name);
+          exercise = list.find((x) => x.id === e.matched_exercise_id) ?? null;
+        }
+        if (!exercise) {
+          unresolved.push(e.name);
+          continue;
+        }
+        for (const s of e.sets) {
+          newDrafts.push({
+            exercise,
+            reps: s.reps != null ? String(s.reps) : '',
+            weight_kg: s.weight_kg ?? '',
+            rpe: s.rpe ?? '',
+            is_warmup: s.is_warmup,
+          });
+        }
+      }
+      if (newDrafts.length > 0) {
+        setDrafts((cur) => [...cur, ...newDrafts]);
+      }
+      if (parsed.notes && !notes) setNotes(parsed.notes);
+      setAiInput('');
+      if (unresolved.length > 0) {
+        Alert.alert(
+          '일부 운동 매칭 실패',
+          `다음 운동은 직접 추가해주세요:\n${unresolved.join(', ')}`,
+        );
+      }
+    } catch (e) {
+      Alert.alert('AI 파싱 실패', String(e));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -173,6 +228,27 @@ function WorkoutPanel() {
         )}
 
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>새 세션</Text>
+
+        <View style={styles.aiBox}>
+          <Text style={styles.aiTitle}>AI로 빠르게 입력</Text>
+          <Text style={styles.dim}>예: "벤치 80kg 5,5,4 / 스쿼트 120 x 5 x 3"</Text>
+          <TextInput
+            style={[styles.input, { marginTop: 8 }]}
+            placeholder="자유 텍스트 입력"
+            placeholderTextColor="#666"
+            value={aiInput}
+            onChangeText={setAiInput}
+            multiline
+          />
+          <Pressable
+            style={[styles.aiBtn, (aiBusy || !aiInput.trim()) && { opacity: 0.5 }]}
+            onPress={onAiParse}
+            disabled={aiBusy || !aiInput.trim()}
+          >
+            <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
+          </Pressable>
+        </View>
+
         {drafts.map((d, i) => (
           <View key={`${d.exercise.id}-${i}`} style={styles.card}>
             <View style={styles.cardRow}>
@@ -344,6 +420,7 @@ function MealPanel() {
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   const [rawInput, setRawInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
 
   const refresh = async () => {
     try {
@@ -408,6 +485,34 @@ function MealPanel() {
     }
   };
 
+  const onAiParse = async () => {
+    if (!rawInput.trim()) return;
+    setAiBusy(true);
+    try {
+      const parsed = await parseMealText(rawInput.trim());
+      if (parsed.items.length === 0) {
+        Alert.alert('파싱 결과 없음', '입력 텍스트에서 항목을 찾지 못했어요.');
+        return;
+      }
+      const newItems: ItemDraft[] = parsed.items.map((it) => ({
+        name: it.name,
+        serving_g: it.serving_g ?? '',
+        kcal: it.kcal ?? '',
+        protein_g: it.protein_g ?? '',
+        carbs_g: it.carbs_g ?? '',
+        fat_g: it.fat_g ?? '',
+      }));
+      // Replace empty starter row, else append.
+      setItems((cur) =>
+        cur.length === 1 && !cur[0]!.name ? newItems : [...cur, ...newItems],
+      );
+    } catch (e) {
+      Alert.alert('AI 파싱 실패', String(e));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -454,13 +559,24 @@ function MealPanel() {
         )}
 
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>새 식단 기록</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="자유 메모 (예: 점심 - 닭가슴살 정식)"
-          placeholderTextColor="#666"
-          value={rawInput}
-          onChangeText={setRawInput}
-        />
+        <View style={styles.aiBox}>
+          <Text style={styles.aiTitle}>AI로 빠르게 입력</Text>
+          <Text style={styles.dim}>예: "닭가슴살 200g, 밥 1공기, 김치"</Text>
+          <TextInput
+            style={[styles.input, { marginTop: 8 }]}
+            placeholder="자유 텍스트 입력"
+            placeholderTextColor="#666"
+            value={rawInput}
+            onChangeText={setRawInput}
+          />
+          <Pressable
+            style={[styles.aiBtn, (aiBusy || !rawInput.trim()) && { opacity: 0.5 }]}
+            onPress={onAiParse}
+            disabled={aiBusy || !rawInput.trim()}
+          >
+            <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
+          </Pressable>
+        </View>
 
         {items.map((it, i) => (
           <View key={i} style={styles.card}>
@@ -601,6 +717,23 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  aiBox: {
+    backgroundColor: '#0f1419',
+    borderColor: '#1f2937',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  aiTitle: { color: '#a78bfa', fontWeight: '700', marginBottom: 4 },
+  aiBtn: {
+    backgroundColor: '#7c3aed',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  aiBtnText: { color: '#fff', fontWeight: '600' },
   pickRow: { padding: 14, paddingHorizontal: 16 },
   pickTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

@@ -13,11 +13,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # Use SQLite in-memory for tests (model is portable enough for our types).
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ["HEALTHAGI_LLM_BACKEND"] = "mock"
 
 from app.core.db import Base, get_session  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models.exercise import SEED_EXERCISES, Exercise, ExerciseAlias  # noqa: E402
 from app.models.muscle_group import SEED_MUSCLE_GROUPS, MuscleGroup  # noqa: E402
+from app.services.llm.mock_client import reset_mock_client  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -29,6 +31,7 @@ def event_loop() -> Any:
 
 @pytest_asyncio.fixture
 async def session_factory() -> AsyncIterator[async_sessionmaker]:
+    reset_mock_client()
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

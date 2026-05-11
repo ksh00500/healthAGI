@@ -2,11 +2,15 @@ import { apiRequest, setTokens } from '@/api/client';
 import type {
   BodyMetric,
   BodyMetricCreate,
+  ChatConversation,
+  ChatConversationDetail,
   Exercise,
   Me,
   Meal,
   MealCreate,
   MuscleGroup,
+  ParsedMeal,
+  ParsedWorkout,
   Profile,
   Timer,
   TimerCreate,
@@ -117,4 +121,35 @@ export function listBodyMetrics(): Promise<BodyMetric[]> {
 
 export function createBodyMetric(body: BodyMetricCreate): Promise<BodyMetric> {
   return apiRequest<BodyMetric>('/profile/body-metrics', { method: 'POST', body });
+}
+
+// --- Chat ---
+
+export function listConversations(): Promise<ChatConversation[]> {
+  return apiRequest<ChatConversation[]>('/chat/conversations');
+}
+
+export function createConversation(title?: string): Promise<ChatConversation> {
+  return apiRequest<ChatConversation>('/chat/conversations', {
+    method: 'POST',
+    body: { title: title ?? null, mode: 'text' },
+  });
+}
+
+export function getConversation(id: string): Promise<ChatConversationDetail> {
+  return apiRequest<ChatConversationDetail>(`/chat/conversations/${id}`);
+}
+
+export function deleteConversation(id: string): Promise<void> {
+  return apiRequest<void>(`/chat/conversations/${id}`, { method: 'DELETE' });
+}
+
+// --- Parse ---
+
+export function parseWorkoutText(text: string): Promise<ParsedWorkout> {
+  return apiRequest<ParsedWorkout>('/workouts/parse', { method: 'POST', body: { text } });
+}
+
+export function parseMealText(text: string): Promise<ParsedMeal> {
+  return apiRequest<ParsedMeal>('/meals/parse', { method: 'POST', body: { text } });
 }

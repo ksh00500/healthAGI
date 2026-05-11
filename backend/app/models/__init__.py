@@ -1,4 +1,5 @@
 from app.models.body_metric import BodyMetric
+from app.models.chat import ChatConversation, ChatMessage
 from app.models.exercise import Exercise, ExerciseAlias
 from app.models.meal import Meal, MealItem
 from app.models.muscle_group import MuscleGroup
@@ -9,6 +10,8 @@ from app.models.workout import WorkoutSession, WorkoutSet
 
 __all__ = [
     "BodyMetric",
+    "ChatConversation",
+    "ChatMessage",
     "Exercise",
     "ExerciseAlias",
     "Meal",

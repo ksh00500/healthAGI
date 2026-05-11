@@ -2,10 +2,12 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth,
+    chat,
     exercises,
     health,
     meals,
     muscle_groups,
+    parse,
     profile,
     timers,
     workouts,
@@ -19,4 +21,6 @@ api_router.include_router(muscle_groups.router)
 api_router.include_router(exercises.router)
 api_router.include_router(workouts.router)
 api_router.include_router(meals.router)
+api_router.include_router(chat.router)
+api_router.include_router(parse.router)
 api_router.include_router(health.router)
