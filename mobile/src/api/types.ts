@@ -51,3 +51,125 @@ export interface Profile {
   notes: string | null;
   updated_at: string;
 }
+
+export interface BodyMetric {
+  id: string;
+  measured_at: string;
+  weight_kg: string | null;
+  body_fat_pct: string | null;
+  resting_hr: number | null;
+  sleep_hours: string | null;
+  notes: string | null;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface BodyMetricCreate {
+  measured_at: string;
+  weight_kg?: string;
+  body_fat_pct?: string;
+  resting_hr?: number;
+  sleep_hours?: string;
+  notes?: string;
+}
+
+export interface Exercise {
+  id: string;
+  canonical_name: string;
+  display_name_ko: string | null;
+  display_name_en: string | null;
+  primary_muscle_group_id: string | null;
+  secondary_muscle_group_ids: string[];
+  equipment: string | null;
+  is_compound: boolean;
+}
+
+export interface WorkoutSet {
+  id: string;
+  exercise_id: string;
+  set_index: number;
+  reps: number | null;
+  weight_kg: string | null;
+  rpe: string | null;
+  is_warmup: boolean;
+  notes: string | null;
+}
+
+export interface WorkoutSetInput {
+  exercise_id: string;
+  set_index: number;
+  reps?: number;
+  weight_kg?: string;
+  rpe?: string;
+  is_warmup?: boolean;
+  notes?: string;
+}
+
+export interface WorkoutSession {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  notes: string | null;
+  raw_input: string | null;
+  sets: WorkoutSet[];
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface WorkoutSessionCreate {
+  started_at?: string;
+  ended_at?: string;
+  notes?: string;
+  raw_input?: string;
+  sets: WorkoutSetInput[];
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface MealItem {
+  id: string;
+  name: string;
+  serving_g: string | null;
+  kcal: string | null;
+  protein_g: string | null;
+  carbs_g: string | null;
+  fat_g: string | null;
+  ai_confidence: string | null;
+  user_confirmed: boolean;
+}
+
+export interface MealItemInput {
+  name: string;
+  serving_g?: string;
+  kcal?: string;
+  protein_g?: string;
+  carbs_g?: string;
+  fat_g?: string;
+  user_confirmed?: boolean;
+}
+
+export interface Meal {
+  id: string;
+  eaten_at: string;
+  meal_type: MealType | null;
+  raw_input: string | null;
+  total_kcal: string | null;
+  total_protein_g: string | null;
+  total_carbs_g: string | null;
+  total_fat_g: string | null;
+  source: string;
+  notes: string | null;
+  items: MealItem[];
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface MealCreate {
+  eaten_at?: string;
+  meal_type?: MealType;
+  raw_input?: string;
+  notes?: string;
+  items: MealItemInput[];
+}

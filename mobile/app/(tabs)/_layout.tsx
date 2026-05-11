@@ -11,7 +11,9 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: '#6b7280',
       }}
     >
+      <Tabs.Screen name="today" options={{ title: '오늘' }} />
       <Tabs.Screen name="timers" options={{ title: '타이머' }} />
+      <Tabs.Screen name="log" options={{ title: '기록' }} />
       <Tabs.Screen name="profile" options={{ title: '프로필' }} />
     </Tabs>
   );

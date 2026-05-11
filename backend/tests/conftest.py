@@ -16,6 +16,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 
 from app.core.db import Base, get_session  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.models.exercise import SEED_EXERCISES, Exercise, ExerciseAlias  # noqa: E402
 from app.models.muscle_group import SEED_MUSCLE_GROUPS, MuscleGroup  # noqa: E402
 
 
@@ -32,7 +33,7 @@ async def session_factory() -> AsyncIterator[async_sessionmaker]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    # Seed muscle groups.
+    # Seed muscle groups + canonical exercises.
     async with factory() as s:
         for mg in SEED_MUSCLE_GROUPS:
             s.add(
@@ -44,6 +45,19 @@ async def session_factory() -> AsyncIterator[async_sessionmaker]:
                     sort_order=mg["order"],
                 )
             )
+        for e in SEED_EXERCISES:
+            ex = Exercise(
+                canonical_name=e["c"],
+                display_name_ko=e["ko"],
+                display_name_en=e["en"],
+                primary_muscle_group_id=e["p"],
+                secondary_muscle_group_ids=e["s"],
+                equipment=e["eq"],
+                is_compound=e["co"],
+            )
+            for a in e["aliases"]:
+                ex.aliases.append(ExerciseAlias(alias=a))
+            s.add(ex)
         await s.commit()
     yield factory
     await engine.dispose()

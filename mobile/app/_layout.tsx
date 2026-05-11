@@ -23,7 +23,7 @@ export default function RootLayout() {
     if (status === 'unauthed' && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (status === 'authed' && inAuthGroup) {
-      router.replace('/(tabs)/timers');
+      router.replace('/(tabs)/today');
     }
   }, [status, segments, router]);
 
