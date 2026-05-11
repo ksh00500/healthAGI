@@ -13,6 +13,7 @@ from app.api.v1 import (
     recommendations,
     timers,
     voice,
+    voice_ws,
     workouts,
 )
 
@@ -28,5 +29,6 @@ api_router.include_router(meals.router)
 api_router.include_router(chat.router)
 api_router.include_router(parse.router)
 api_router.include_router(voice.router)
+api_router.include_router(voice_ws.router)
 api_router.include_router(recommendations.router)
 api_router.include_router(health.router)

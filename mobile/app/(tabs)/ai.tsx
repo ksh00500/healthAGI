@@ -21,9 +21,13 @@ import {
   listConversations,
 } from '@/api/endpoints';
 import { postSSE } from '@/api/sse';
-import { uploadVoiceTurn } from '@/api/voice';
+import { openVoiceTurn } from '@/api/voice_ws';
 import type { ChatConversation, ChatMessage } from '@/api/types';
-import { useTTSPlayer, useVoiceRecorder } from '@/features/voice/recorder';
+import {
+  readAudioFileBase64,
+  useTTSQueue,
+  useVoiceRecorder,
+} from '@/features/voice/recorder';
 
 interface TempMessage extends ChatMessage {
   streaming?: boolean;
@@ -40,7 +44,9 @@ export default function AIScreen() {
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<FlatList<TempMessage>>(null);
   const voiceRecorder = useVoiceRecorder();
-  const ttsPlayer = useTTSPlayer();
+  const ttsQueue = useTTSQueue();
+  const voiceTurnRef = useRef<{ interrupt: () => void; close: () => void } | null>(null);
+  const [voiceStreaming, setVoiceStreaming] = useState(false);
   const params = useLocalSearchParams<{ prefill?: string }>();
   const consumedPrefill = useRef<string | null>(null);
 
@@ -213,49 +219,119 @@ export default function AIScreen() {
       return;
     }
     setVoiceBusy(true);
+    let audioB64: string;
     try {
-      const res = await uploadVoiceTurn({
-        audioUri: recording.uri,
+      audioB64 = await readAudioFileBase64(recording.uri);
+    } catch (e) {
+      setError(`녹음 읽기 실패: ${String(e)}`);
+      setVoiceBusy(false);
+      return;
+    }
+
+    setVoiceStreaming(true);
+    let userBubbleId: string | null = null;
+    let asstBubbleId: string | null = null;
+    let asstBuf = '';
+
+    try {
+      const handle = await openVoiceTurn({
+        audioB64,
         audioMime: recording.mime,
-        fileName: recording.fileName,
         conversationId: activeId ?? undefined,
+        handlers: {
+          onEvent: (evt) => {
+            if (evt.type === 'ready') {
+              // nothing — WS auto-uploads the file
+            } else if (evt.type === 'stt_final') {
+              if (!activeId) {
+                setActiveId(evt.conversation_id);
+                listConversations().then(setConversations).catch(() => undefined);
+              }
+              userBubbleId = evt.user_message_id;
+              const now = new Date().toISOString();
+              setMessages((m) => [
+                ...m,
+                {
+                  id: userBubbleId!,
+                  role: 'user',
+                  content: evt.text,
+                  tool_name: null,
+                  tool_args: null,
+                  tool_result: null,
+                  model: null,
+                  created_at: now,
+                },
+                {
+                  id: `local-asst-${Date.now()}`,
+                  role: 'assistant',
+                  content: '',
+                  tool_name: null,
+                  tool_args: null,
+                  tool_result: null,
+                  model: null,
+                  created_at: now,
+                  streaming: true,
+                },
+              ]);
+            } else if (evt.type === 'llm_token') {
+              asstBuf += evt.text;
+              setMessages((m) => {
+                const copy = [...m];
+                const last = copy[copy.length - 1];
+                if (last && last.role === 'assistant') {
+                  copy[copy.length - 1] = { ...last, content: asstBuf };
+                }
+                return copy;
+              });
+            } else if (evt.type === 'tts_chunk') {
+              const ext = evt.mime.includes('wav') ? 'wav' : 'm4a';
+              void ttsQueue.enqueue(evt.audio_b64, ext).catch(() => undefined);
+            } else if (evt.type === 'llm_done') {
+              asstBubbleId = evt.assistant_message_id;
+              setMessages((m) => {
+                const copy = [...m];
+                const last = copy[copy.length - 1];
+                if (last && last.role === 'assistant') {
+                  copy[copy.length - 1] = {
+                    ...last,
+                    id: asstBubbleId!,
+                    content: evt.reply_text,
+                    streaming: false,
+                  };
+                }
+                return copy;
+              });
+            } else if (evt.type === 'tts_done') {
+              setVoiceStreaming(false);
+              setVoiceBusy(false);
+            } else if (evt.type === 'error') {
+              setError(evt.message);
+              setVoiceStreaming(false);
+              setVoiceBusy(false);
+            }
+          },
+          onClose: () => {
+            voiceTurnRef.current = null;
+            setVoiceStreaming(false);
+            setVoiceBusy(false);
+          },
+        },
       });
-      if (!activeId) {
-        setActiveId(res.conversation_id);
-        // Refresh list so the new voice conversation shows up.
-        listConversations().then(setConversations).catch(() => undefined);
-      }
-      const now = new Date().toISOString();
-      setMessages((m) => [
-        ...m,
-        {
-          id: res.user_message_id,
-          role: 'user',
-          content: res.transcript,
-          tool_name: null,
-          tool_args: null,
-          tool_result: null,
-          model: null,
-          created_at: now,
-        },
-        {
-          id: res.assistant_message_id,
-          role: 'assistant',
-          content: res.reply_text,
-          tool_name: null,
-          tool_args: null,
-          tool_result: null,
-          model: null,
-          created_at: now,
-        },
-      ]);
-      const ext = res.audio_mime.includes('wav') ? 'wav' : 'm4a';
-      void ttsPlayer.play(res.audio_b64, ext).catch(() => undefined);
+      voiceTurnRef.current = handle;
     } catch (e) {
       setError(`음성 전송 실패: ${String(e)}`);
-    } finally {
+      setVoiceStreaming(false);
       setVoiceBusy(false);
     }
+  };
+
+  const onInterruptVoice = () => {
+    voiceTurnRef.current?.interrupt();
+    voiceTurnRef.current?.close();
+    voiceTurnRef.current = null;
+    ttsQueue.cancel();
+    setVoiceStreaming(false);
+    setVoiceBusy(false);
   };
 
   const onDelete = async (id: string) => {
@@ -328,6 +404,11 @@ export default function AIScreen() {
         <View style={styles.voiceBanner}>
           <Text style={styles.voiceBannerText}>🎙️ 듣는 중… 손을 떼면 전송</Text>
         </View>
+      ) : voiceStreaming ? (
+        <Pressable onPress={onInterruptVoice} style={styles.voiceBanner}>
+          <ActivityIndicator color="#fff" />
+          <Text style={styles.voiceBannerText}>  AI 응답 중 · 탭하여 중단</Text>
+        </Pressable>
       ) : voiceBusy ? (
         <View style={styles.voiceBanner}>
           <ActivityIndicator color="#fff" />

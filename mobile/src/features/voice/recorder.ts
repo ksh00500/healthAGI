@@ -6,7 +6,7 @@ import {
   useAudioRecorder,
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface RecordingResult {
   uri: string;
@@ -74,6 +74,15 @@ export function useVoiceRecorder() {
 }
 
 /**
+ * Read a local audio file as a base64 string suitable for WS upload.
+ */
+export async function readAudioFileBase64(uri: string): Promise<string> {
+  return FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+}
+
+/**
  * Decode a base64 audio blob, write to a temp file, and play it.
  * Returns when playback ends.
  */
@@ -106,4 +115,69 @@ export function useTTSPlayer() {
   }, []);
 
   return { play };
+}
+
+
+/**
+ * Queue-backed streaming TTS playback. Each enqueued base64 chunk is written
+ * to a cache file and played in FIFO order. `cancel()` clears the queue and
+ * stops playback (used for barge-in / interrupt).
+ */
+export function useTTSQueue() {
+  const playerRef = useRef<unknown | null>(null);
+  const queueRef = useRef<string[]>([]);
+  const playingRef = useRef(false);
+  const [current, setCurrent] = useState<string | null>(null);
+  const player = useAudioPlayer(current);
+
+  // Track the player so cancel() can stop it even between renders.
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
+
+  useEffect(() => {
+    if (!current) return;
+    const sub = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) {
+        playingRef.current = false;
+        const next = queueRef.current.shift();
+        if (next) {
+          playingRef.current = true;
+          setCurrent(next);
+        } else {
+          setCurrent(null);
+        }
+      }
+    });
+    player.play();
+    return () => sub.remove();
+  }, [current, player]);
+
+  const enqueue = useCallback(async (audioB64: string, ext = 'wav') => {
+    const path = `${FileSystem.cacheDirectory}tts-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}.${ext}`;
+    await FileSystem.writeAsStringAsync(path, audioB64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    if (playingRef.current || current) {
+      queueRef.current.push(path);
+    } else {
+      playingRef.current = true;
+      setCurrent(path);
+    }
+  }, [current]);
+
+  const cancel = useCallback(() => {
+    queueRef.current = [];
+    playingRef.current = false;
+    try {
+      (player as unknown as { pause?: () => void }).pause?.();
+    } catch {
+      /* ignore */
+    }
+    setCurrent(null);
+  }, [player]);
+
+  return useMemo(() => ({ enqueue, cancel }), [enqueue, cancel]);
 }

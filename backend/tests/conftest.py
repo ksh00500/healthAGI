@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
+import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +20,7 @@ os.environ["HEALTHAGI_LLM_BACKEND"] = "mock"
 os.environ["HEALTHAGI_STT_BACKEND"] = "mock"
 os.environ["HEALTHAGI_TTS_BACKEND"] = "mock"
 os.environ["HEALTHAGI_STORAGE_BACKEND"] = "memory"
+os.environ["HEALTHAGI_VAD_BACKEND"] = "mock"
 
 from app.core.db import Base, get_session  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -26,6 +30,7 @@ from app.services.llm.mock_client import reset_mock_client  # noqa: E402
 from app.services.storage.memory_storage import reset_memory_storage  # noqa: E402
 from app.services.stt.mock_client import reset_mock_stt  # noqa: E402
 from app.services.tts.mock_client import reset_mock_tts  # noqa: E402
+from app.services.vad.mock import reset_mock_vad  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -41,7 +46,16 @@ async def session_factory() -> AsyncIterator[async_sessionmaker]:
     reset_mock_stt()
     reset_mock_tts()
     reset_memory_storage()
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    reset_mock_vad()
+    # Temp file DB so the database survives across the multiple event loops
+    # spun up by TestClient (used for the WebSocket tests). With NullPool +
+    # `:memory:` each connection would see its own empty DB; with StaticPool +
+    # `:memory:` the shared aiosqlite connection breaks across loops.
+    tmp = Path(tempfile.gettempdir()) / f"healthagi-test-{uuid.uuid4().hex}.sqlite"
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp}",
+        connect_args={"check_same_thread": False},
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -73,6 +87,10 @@ async def session_factory() -> AsyncIterator[async_sessionmaker]:
         await s.commit()
     yield factory
     await engine.dispose()
+    try:
+        tmp.unlink()
+    except FileNotFoundError:
+        pass
 
 
 @pytest_asyncio.fixture
