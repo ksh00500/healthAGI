@@ -29,6 +29,14 @@ dev = [
   "mypy>=1.10.0",
   "aiosqlite>=0.20.0",
 ]
+# Heavy ML dependencies for voice mode. Optional so the API server can run
+# (and tests can pass) without them. Install on the GPU host via:
+#   pip install -e ".[voice]"
+voice = [
+  "faster-whisper>=1.0.0",
+  "TTS>=0.22.0",
+  "piper-tts>=1.2.0",
+]
 
 [build-system]
 requires = ["hatchling"]

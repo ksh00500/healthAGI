@@ -10,6 +10,7 @@ from app.api.v1 import (
     parse,
     profile,
     timers,
+    voice,
     workouts,
 )
 
@@ -23,4 +24,5 @@ api_router.include_router(workouts.router)
 api_router.include_router(meals.router)
 api_router.include_router(chat.router)
 api_router.include_router(parse.router)
+api_router.include_router(voice.router)
 api_router.include_router(health.router)

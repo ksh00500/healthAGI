@@ -238,3 +238,20 @@ export interface ParsedMeal {
   items: ParsedMealItem[];
   raw: string;
 }
+
+// --- Voice ---
+
+export interface VoiceTurnResponse {
+  conversation_id: string;
+  user_message_id: string;
+  assistant_message_id: string;
+  transcript: string;
+  reply_text: string;
+  audio_b64: string;
+  audio_mime: string;
+  audio_sample_rate: number;
+  stt_language: string | null;
+  stt_duration_s: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+}

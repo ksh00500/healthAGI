@@ -19,7 +19,9 @@ import {
   listConversations,
 } from '@/api/endpoints';
 import { postSSE } from '@/api/sse';
+import { uploadVoiceTurn } from '@/api/voice';
 import type { ChatConversation, ChatMessage } from '@/api/types';
+import { useTTSPlayer, useVoiceRecorder } from '@/features/voice/recorder';
 
 interface TempMessage extends ChatMessage {
   streaming?: boolean;
@@ -31,9 +33,12 @@ export default function AIScreen() {
   const [messages, setMessages] = useState<TempMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<FlatList<TempMessage>>(null);
+  const voiceRecorder = useVoiceRecorder();
+  const ttsPlayer = useTTSPlayer();
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -169,6 +174,75 @@ export default function AIScreen() {
     }
   };
 
+  const onMicPressIn = async () => {
+    if (sending || voiceBusy) return;
+    try {
+      await voiceRecorder.start();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const onMicPressOut = async () => {
+    if (!voiceRecorder.recording) return;
+    setError(null);
+    let recording: Awaited<ReturnType<typeof voiceRecorder.stop>>;
+    try {
+      recording = await voiceRecorder.stop();
+    } catch (e) {
+      setError(`녹음 중단 실패: ${String(e)}`);
+      return;
+    }
+    if (!recording || recording.durationMs < 400) {
+      setError('너무 짧아요. 마이크 버튼을 길게 누르고 말씀하세요.');
+      return;
+    }
+    setVoiceBusy(true);
+    try {
+      const res = await uploadVoiceTurn({
+        audioUri: recording.uri,
+        audioMime: recording.mime,
+        fileName: recording.fileName,
+        conversationId: activeId ?? undefined,
+      });
+      if (!activeId) {
+        setActiveId(res.conversation_id);
+        // Refresh list so the new voice conversation shows up.
+        listConversations().then(setConversations).catch(() => undefined);
+      }
+      const now = new Date().toISOString();
+      setMessages((m) => [
+        ...m,
+        {
+          id: res.user_message_id,
+          role: 'user',
+          content: res.transcript,
+          tool_name: null,
+          tool_args: null,
+          tool_result: null,
+          model: null,
+          created_at: now,
+        },
+        {
+          id: res.assistant_message_id,
+          role: 'assistant',
+          content: res.reply_text,
+          tool_name: null,
+          tool_args: null,
+          tool_result: null,
+          model: null,
+          created_at: now,
+        },
+      ]);
+      const ext = res.audio_mime.includes('wav') ? 'wav' : 'm4a';
+      void ttsPlayer.play(res.audio_b64, ext).catch(() => undefined);
+    } catch (e) {
+      setError(`음성 전송 실패: ${String(e)}`);
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
+
   const onDelete = async (id: string) => {
     abortRef.current?.abort();
     try {
@@ -235,23 +309,49 @@ export default function AIScreen() {
         }
       />
 
+      {voiceRecorder.recording ? (
+        <View style={styles.voiceBanner}>
+          <Text style={styles.voiceBannerText}>🎙️ 듣는 중… 손을 떼면 전송</Text>
+        </View>
+      ) : voiceBusy ? (
+        <View style={styles.voiceBanner}>
+          <ActivityIndicator color="#fff" />
+          <Text style={styles.voiceBannerText}>  음성 분석 중…</Text>
+        </View>
+      ) : null}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.composer}>
+          <Pressable
+            onPressIn={onMicPressIn}
+            onPressOut={onMicPressOut}
+            disabled={sending || voiceBusy}
+            style={[
+              styles.micBtn,
+              voiceRecorder.recording && styles.micBtnActive,
+              (sending || voiceBusy) && { opacity: 0.4 },
+            ]}
+          >
+            <Text style={styles.micText}>🎤</Text>
+          </Pressable>
           <TextInput
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder="메시지 입력…"
+            placeholder="메시지 입력 / 마이크 길게 누르기"
             placeholderTextColor="#666"
-            editable={!sending}
+            editable={!sending && !voiceBusy && !voiceRecorder.recording}
             multiline
           />
           <Pressable
-            style={[styles.sendBtn, (sending || !input.trim()) && { opacity: 0.5 }]}
+            style={[
+              styles.sendBtn,
+              (sending || voiceBusy || !input.trim()) && { opacity: 0.5 },
+            ]}
             onPress={onSend}
-            disabled={sending || !input.trim()}
+            disabled={sending || voiceBusy || !input.trim()}
           >
             {sending ? (
               <ActivityIndicator color="#fff" />
@@ -354,6 +454,25 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   sendText: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  micBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#16191e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+  },
+  micBtnActive: { backgroundColor: '#dc2626' },
+  micText: { fontSize: 18 },
+  voiceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    backgroundColor: '#7c3aed',
+  },
+  voiceBannerText: { color: '#fff', fontWeight: '600', fontSize: 13 },
   errorBar: { backgroundColor: '#7c2d12', padding: 8 },
   errorText: { color: '#fff', fontSize: 12, textAlign: 'center' },
   empty: { padding: 24, alignItems: 'center', gap: 6 },

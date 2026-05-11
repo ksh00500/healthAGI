@@ -29,6 +29,12 @@
         {
           "color": "#0b0d10"
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "건강 코치와 음성으로 대화하려면 마이크 권한이 필요해요."
+        }
       ]
     ],
     "experiments": {
