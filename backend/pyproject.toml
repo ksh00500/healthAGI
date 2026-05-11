@@ -37,6 +37,9 @@ voice = [
   "TTS>=0.22.0",
   "piper-tts>=1.2.0",
 ]
+storage = [
+  "minio>=7.2.0",
+]
 
 [build-system]
 requires = ["hatchling"]

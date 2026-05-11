@@ -61,6 +61,7 @@ class MealCreate(BaseModel):
     source: str = "manual"
     notes: str | None = None
     items: list[MealItemInput] = Field(default_factory=list)
+    photo_storage_key: str | None = None  # links an existing MealPhoto row
 
 
 class MealUpdate(BaseModel):

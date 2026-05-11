@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -559,6 +560,14 @@ function MealPanel() {
         )}
 
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>새 식단 기록</Text>
+
+        <Pressable
+          style={styles.photoBtn}
+          onPress={() => router.push('/meal/photo')}
+        >
+          <Text style={styles.photoBtnText}>📷 사진으로 식단 추가</Text>
+        </Pressable>
+
         <View style={styles.aiBox}>
           <Text style={styles.aiTitle}>AI로 빠르게 입력</Text>
           <Text style={styles.dim}>예: "닭가슴살 200g, 밥 1공기, 김치"</Text>
@@ -734,6 +743,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   aiBtnText: { color: '#fff', fontWeight: '600' },
+  photoBtn: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  photoBtnText: { color: '#fff', fontWeight: '600' },
   pickRow: { padding: 14, paddingHorizontal: 16 },
   pickTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

@@ -58,6 +58,17 @@ class LLMClient(ABC):
     ) -> dict[str, Any]:
         """Non-streaming structured JSON output. Implementation must parse to a dict."""
 
+    async def complete_vision_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_bytes: bytes,
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        """Vision -> structured JSON. Default raises; concrete clients override."""
+        raise NotImplementedError
+
 
 def parse_json_lenient(text: str) -> dict[str, Any]:
     """Best-effort extraction of a JSON object from an LLM response.

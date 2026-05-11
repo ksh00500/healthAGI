@@ -22,16 +22,22 @@ class MockLLMClient(LLMClient):
         self,
         replies: list[str] | None = None,
         json_replies: list[dict[str, Any]] | None = None,
+        vision_replies: list[dict[str, Any]] | None = None,
     ) -> None:
         self.replies = list(replies or [])
         self.json_replies = list(json_replies or [])
+        self.vision_replies = list(vision_replies or [])
         self.calls: list[list[ChatTurn]] = []
+        self.vision_calls: list[tuple[str, str, int]] = []  # (system, user, image_size)
 
     def queue(self, text: str) -> None:
         self.replies.append(text)
 
     def queue_json(self, obj: dict[str, Any]) -> None:
         self.json_replies.append(obj)
+
+    def queue_vision(self, obj: dict[str, Any]) -> None:
+        self.vision_replies.append(obj)
 
     async def chat_stream(
         self,
@@ -69,6 +75,19 @@ class MockLLMClient(LLMClient):
         # Default: echo back a tiny structure useful for unit tests.
         last_user = next((m for m in reversed(messages) if m.role == "user"), None)
         return {"echo": last_user.content if last_user else ""}
+
+    async def complete_vision_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_bytes: bytes,
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        self.vision_calls.append((system_prompt, user_prompt, len(image_bytes)))
+        if self.vision_replies:
+            return self.vision_replies.pop(0)
+        return {"items": []}
 
 
 _singleton: MockLLMClient | None = None

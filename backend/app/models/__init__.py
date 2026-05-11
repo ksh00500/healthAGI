@@ -1,7 +1,7 @@
 from app.models.body_metric import BodyMetric
 from app.models.chat import ChatConversation, ChatMessage
 from app.models.exercise import Exercise, ExerciseAlias
-from app.models.meal import Meal, MealItem
+from app.models.meal import Meal, MealItem, MealPhoto
 from app.models.muscle_group import MuscleGroup
 from app.models.profile import Profile
 from app.models.recovery_timer import RecoveryTimer
@@ -16,6 +16,7 @@ __all__ = [
     "ExerciseAlias",
     "Meal",
     "MealItem",
+    "MealPhoto",
     "MuscleGroup",
     "Profile",
     "RecoveryTimer",

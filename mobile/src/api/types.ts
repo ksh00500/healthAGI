@@ -172,6 +172,7 @@ export interface MealCreate {
   raw_input?: string;
   notes?: string;
   items: MealItemInput[];
+  photo_storage_key?: string;
 }
 
 // --- Chat ---
@@ -237,6 +238,24 @@ export interface ParsedMealItem {
 export interface ParsedMeal {
   items: ParsedMealItem[];
   raw: string;
+}
+
+// --- Photo meal ---
+
+export interface PhotoAnalyzeItem {
+  name: string;
+  serving_g: string | null;
+  kcal: string | null;
+  protein_g: string | null;
+  carbs_g: string | null;
+  fat_g: string | null;
+  confidence: string | null;
+}
+
+export interface PhotoAnalyzeResponse {
+  storage_key: string;
+  items: PhotoAnalyzeItem[];
+  presigned_url: string | null;
 }
 
 // --- Voice ---

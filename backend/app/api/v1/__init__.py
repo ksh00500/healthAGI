@@ -5,6 +5,7 @@ from app.api.v1 import (
     chat,
     exercises,
     health,
+    meal_photos,
     meals,
     muscle_groups,
     parse,
@@ -21,6 +22,7 @@ api_router.include_router(timers.router)
 api_router.include_router(muscle_groups.router)
 api_router.include_router(exercises.router)
 api_router.include_router(workouts.router)
+api_router.include_router(meal_photos.router)
 api_router.include_router(meals.router)
 api_router.include_router(chat.router)
 api_router.include_router(parse.router)

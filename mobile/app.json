@@ -35,6 +35,18 @@
         {
           "microphonePermission": "건강 코치와 음성으로 대화하려면 마이크 권한이 필요해요."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "음식 사진을 찍어 식단을 분석하려면 카메라 권한이 필요해요."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "갤러리에서 음식 사진을 선택하려면 사진 권한이 필요해요."
+        }
       ]
     ],
     "experiments": {

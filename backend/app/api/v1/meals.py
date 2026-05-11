@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, SessionDep
-from app.models.meal import Meal, MealItem
+from app.models.meal import Meal, MealItem, MealPhoto
 from app.schemas.meal import MealCreate, MealItemInput, MealRead, MealUpdate
 
 router = APIRouter(prefix="/meals", tags=["meals"])
@@ -79,17 +79,39 @@ def _build_items(items: list[MealItemInput]) -> list[MealItem]:
 async def create_meal(
     payload: MealCreate, user: CurrentUser, session: SessionDep
 ) -> Meal:
+    photo: MealPhoto | None = None
+    if payload.photo_storage_key:
+        photo = await session.scalar(
+            select(MealPhoto).where(
+                MealPhoto.storage_key == payload.photo_storage_key,
+                MealPhoto.user_id == user.id,
+            )
+        )
+        if photo is None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"unknown photo storage_key: {payload.photo_storage_key}",
+            )
+        if photo.meal_id is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "photo is already attached to another meal",
+            )
+
     meal = Meal(
         user_id=user.id,
         eaten_at=payload.eaten_at or datetime.now(timezone.utc),
         meal_type=payload.meal_type,
         raw_input=payload.raw_input,
-        source=payload.source,
+        source="photo" if photo is not None else payload.source,
         notes=payload.notes,
     )
     meal.items = _build_items(payload.items)
     _recompute_totals(meal)
     session.add(meal)
+    await session.flush()
+    if photo is not None:
+        photo.meal_id = meal.id
     await session.commit()
     return await session.scalar(_load_meal_stmt(user.id, meal.id))
 

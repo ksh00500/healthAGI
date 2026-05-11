@@ -16,12 +16,14 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ["HEALTHAGI_LLM_BACKEND"] = "mock"
 os.environ["HEALTHAGI_STT_BACKEND"] = "mock"
 os.environ["HEALTHAGI_TTS_BACKEND"] = "mock"
+os.environ["HEALTHAGI_STORAGE_BACKEND"] = "memory"
 
 from app.core.db import Base, get_session  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models.exercise import SEED_EXERCISES, Exercise, ExerciseAlias  # noqa: E402
 from app.models.muscle_group import SEED_MUSCLE_GROUPS, MuscleGroup  # noqa: E402
 from app.services.llm.mock_client import reset_mock_client  # noqa: E402
+from app.services.storage.memory_storage import reset_memory_storage  # noqa: E402
 from app.services.stt.mock_client import reset_mock_stt  # noqa: E402
 from app.services.tts.mock_client import reset_mock_tts  # noqa: E402
 
@@ -38,6 +40,7 @@ async def session_factory() -> AsyncIterator[async_sessionmaker]:
     reset_mock_client()
     reset_mock_stt()
     reset_mock_tts()
+    reset_memory_storage()
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

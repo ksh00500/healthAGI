@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import AsyncIterator
 from typing import Any
@@ -79,6 +80,33 @@ class OllamaClient(LLMClient):
             "options": {"temperature": temperature},
         }
         async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+            response = await client.post(f"{self.base_url}/api/chat", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            content = (data.get("message") or {}).get("content") or ""
+            return parse_json_lenient(content)
+
+    async def complete_vision_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_bytes: bytes,
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        img_b64 = base64.b64encode(image_bytes).decode("ascii")
+        # Ollama: pass images as base64 strings on the user message.
+        payload = {
+            "model": model or get_settings().llm_vision_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt, "images": [img_b64]},
+            ],
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": temperature},
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
             response = await client.post(f"{self.base_url}/api/chat", json=payload)
             response.raise_for_status()
             data = response.json()
