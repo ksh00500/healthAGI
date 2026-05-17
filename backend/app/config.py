@@ -29,11 +29,15 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
-    # LLM (placeholder for later phases)
+    # LLM. Defaults assume the managed Gemini API; switch to Ollama with
+    # HEALTHAGI_LLM_BACKEND=ollama (then llm_text_model expects an Ollama tag).
+    # Env names: GEMINI_API_KEY / GOOGLE_API_KEY (case-insensitive matching).
+    gemini_api_key: str | None = None
+    google_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
-    llm_text_model: str = "gemma3:12b"
-    llm_vision_model: str = "qwen2-vl:7b"
-    llm_voice_model: str = "gemma3:4b"
+    llm_text_model: str = "gemini-2.5-flash"
+    llm_vision_model: str = "gemini-2.5-flash"
+    llm_voice_model: str = "gemini-2.5-flash"
 
     # Storage (placeholder for later phases)
     minio_endpoint: str = "localhost:9000"
@@ -47,6 +51,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def effective_gemini_key(self) -> str | None:
+        """Gemini accepts either env var; prefer the explicit one."""
+        return self.gemini_api_key or self.google_api_key
 
 
 @lru_cache
