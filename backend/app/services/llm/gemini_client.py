@@ -74,7 +74,7 @@ class GeminiClient(LLMClient):
                 "google-genai not installed. `pip install google-genai`"
             ) from e
         self._client = genai.Client(api_key=key)
-        self.default_model = default_model or s.llm_text_model
+        self.default_model = default_model or s.effective_chat_model
 
     def _config(
         self,

@@ -30,14 +30,28 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
     # LLM. Defaults assume the managed Gemini API; switch to Ollama with
-    # HEALTHAGI_LLM_BACKEND=ollama (then llm_text_model expects an Ollama tag).
+    # HEALTHAGI_LLM_BACKEND=ollama (then *_model settings expect Ollama tags).
     # Env names: GEMINI_API_KEY / GOOGLE_API_KEY (case-insensitive matching).
     gemini_api_key: str | None = None
     google_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
-    llm_text_model: str = "gemini-2.5-flash"
+
+    # Per-feature model tiering. Lighter models for high-volume / latency-
+    # sensitive calls, Pro for the once-a-day analytical work.
+    #   chat:           interactive Q&A
+    #   voice:          PTT/streaming voice turn — latency matters most
+    #   parse:          one-shot structured extraction (workout/meal text)
+    #   recommendation: daily card generation + recovery-time suggestion
+    #   vision:         meal photo analysis
+    llm_chat_model: str = "gemini-2.5-flash"
+    llm_voice_model: str = "gemini-2.5-flash-lite"
+    llm_parse_model: str = "gemini-2.5-flash"
+    llm_recommendation_model: str = "gemini-2.5-pro"
     llm_vision_model: str = "gemini-2.5-flash"
-    llm_voice_model: str = "gemini-2.5-flash"
+
+    # Backward-compat alias. Older deployments may still set LLM_TEXT_MODEL;
+    # if so it overrides llm_chat_model on read via the property below.
+    llm_text_model: str | None = None
 
     # Storage (placeholder for later phases)
     minio_endpoint: str = "localhost:9000"
@@ -56,6 +70,11 @@ class Settings(BaseSettings):
     def effective_gemini_key(self) -> str | None:
         """Gemini accepts either env var; prefer the explicit one."""
         return self.gemini_api_key or self.google_api_key
+
+    @property
+    def effective_chat_model(self) -> str:
+        """Honor the legacy LLM_TEXT_MODEL knob if set."""
+        return self.llm_text_model or self.llm_chat_model
 
 
 @lru_cache

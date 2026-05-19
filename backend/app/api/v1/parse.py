@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.deps import CurrentUser, SessionDep
 from app.models.exercise import Exercise
 from app.services.llm import get_llm_client
@@ -103,7 +104,8 @@ async def parse_workout(
             [
                 ChatTurn(role="system", content=_WORKOUT_PROMPT),
                 ChatTurn(role="user", content=payload.text),
-            ]
+            ],
+            model=get_settings().llm_parse_model,
         )
     except Exception as e:  # noqa: BLE001
         raise HTTPException(
@@ -179,7 +181,8 @@ async def parse_meal(
             [
                 ChatTurn(role="system", content=_MEAL_PROMPT),
                 ChatTurn(role="user", content=payload.text),
-            ]
+            ],
+            model=get_settings().llm_parse_model,
         )
     except Exception as e:  # noqa: BLE001
         raise HTTPException(

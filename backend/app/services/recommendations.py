@@ -158,7 +158,7 @@ async def generate_recommendations(
             ChatTurn(role="system", content=system_prompt),
             ChatTurn(role="user", content=_REC_USER),
         ],
-        model=settings.llm_text_model,
+        model=settings.llm_recommendation_model,
         temperature=0.4,
     )
 
@@ -187,7 +187,7 @@ async def generate_recommendations(
                 body=body,
                 rationale=(card.get("rationale") or "").strip() or None,
                 source_context=context,
-                model=settings.llm_text_model,
+                model=settings.llm_recommendation_model,
             )
             session.add(existing)
         else:
@@ -195,7 +195,7 @@ async def generate_recommendations(
             existing.body = body
             existing.rationale = (card.get("rationale") or "").strip() or None
             existing.source_context = context
-            existing.model = settings.llm_text_model
+            existing.model = settings.llm_recommendation_model
         written_kinds.append(kind)
 
     await session.commit()
@@ -262,7 +262,7 @@ async def suggest_recovery_for_session(
             ChatTurn(role="system", content=system_prompt),
             ChatTurn(role="user", content="\n".join(parts) + "\n\n" + _TIMER_SUGGEST_USER),
         ],
-        model=settings.llm_text_model,
+        model=settings.llm_recommendation_model,
         temperature=0.3,
     )
 

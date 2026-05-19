@@ -137,7 +137,7 @@ async def post_message(
 
     llm = get_llm_client()
     settings = get_settings()
-    model = settings.llm_text_model
+    model = settings.effective_chat_model
 
     # Pre-create empty assistant message so the id is available immediately.
     assistant_msg = ChatMessage(

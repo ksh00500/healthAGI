@@ -1,20 +1,32 @@
-.PHONY: help up down logs api db-shell migrate revision test lint mobile
+.PHONY: help up up-storage up-ollama up-all down logs api db-shell migrate revision test lint mobile
 
 help:
 	@echo "Targets:"
-	@echo "  up         - docker compose up -d (postgres, minio, ollama)"
-	@echo "  down       - docker compose down"
-	@echo "  logs       - tail compose logs"
-	@echo "  api        - run uvicorn dev server on host"
-	@echo "  db-shell   - psql into postgres"
-	@echo "  migrate    - alembic upgrade head"
+	@echo "  up           - postgres only (default — Gemini API + local fs storage)"
+	@echo "  up-storage   - postgres + minio (when HEALTHAGI_STORAGE_BACKEND=minio)"
+	@echo "  up-ollama    - postgres + ollama (when HEALTHAGI_LLM_BACKEND=ollama)"
+	@echo "  up-all       - postgres + minio + ollama"
+	@echo "  down         - docker compose down"
+	@echo "  logs         - tail compose logs"
+	@echo "  api          - run uvicorn dev server on host"
+	@echo "  db-shell     - psql into postgres"
+	@echo "  migrate      - alembic upgrade head"
 	@echo "  revision m=msg - alembic autogenerate revision"
-	@echo "  test       - run backend pytest"
-	@echo "  lint       - ruff + mypy on backend, tsc on mobile"
-	@echo "  mobile     - expo start (mobile dev server)"
+	@echo "  test         - run backend pytest"
+	@echo "  lint         - ruff + mypy on backend, tsc on mobile"
+	@echo "  mobile       - expo start (mobile dev server)"
 
 up:
-	docker compose up -d postgres minio ollama
+	docker compose up -d postgres
+
+up-storage:
+	docker compose --profile storage up -d postgres minio
+
+up-ollama:
+	docker compose --profile ollama up -d postgres ollama
+
+up-all:
+	docker compose --profile storage --profile ollama up -d postgres minio ollama
 
 down:
 	docker compose down

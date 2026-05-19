@@ -29,13 +29,20 @@ def _build_client() -> LLMClient:
     if backend == "gemini" or (backend is None and settings.effective_gemini_key):
         from app.services.llm.gemini_client import GeminiClient
 
-        logger.info("LLM backend: gemini (model=%s)", settings.llm_text_model)
-        return GeminiClient(default_model=settings.llm_text_model)
+        logger.info(
+            "LLM backend: gemini (chat=%s voice=%s parse=%s rec=%s vision=%s)",
+            settings.effective_chat_model,
+            settings.llm_voice_model,
+            settings.llm_parse_model,
+            settings.llm_recommendation_model,
+            settings.llm_vision_model,
+        )
+        return GeminiClient(default_model=settings.effective_chat_model)
     if backend == "ollama" or backend is None:
-        logger.info("LLM backend: ollama (model=%s)", settings.llm_text_model)
+        logger.info("LLM backend: ollama (model=%s)", settings.effective_chat_model)
         return OllamaClient(
             base_url=settings.ollama_base_url,
-            default_model=settings.llm_text_model,
+            default_model=settings.effective_chat_model,
         )
     raise RuntimeError(f"unknown HEALTHAGI_LLM_BACKEND: {backend!r}")
 
