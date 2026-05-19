@@ -20,12 +20,12 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    profile: Mapped["Profile | None"] = relationship(
+    profile: Mapped[Profile | None] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
-    body_metrics: Mapped[list["BodyMetric"]] = relationship(
+    body_metrics: Mapped[list[BodyMetric]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    recovery_timers: Mapped[list["RecoveryTimer"]] = relationship(
+    recovery_timers: Mapped[list[RecoveryTimer]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )

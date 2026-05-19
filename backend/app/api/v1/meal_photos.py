@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -137,7 +137,7 @@ async def analyze_photo(
         user_id=user.id,
         meal_id=None,
         storage_key=storage_key,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=datetime.now(UTC),
         vision_model=settings.llm_vision_model,
         vision_raw_response=raw_response,
     )

@@ -33,4 +33,4 @@ class BodyMetric(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     sleep_hours: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    user: Mapped["User"] = relationship(back_populates="body_metrics")
+    user: Mapped[User] = relationship(back_populates="body_metrics")

@@ -6,12 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
@@ -41,10 +41,10 @@ class Meal(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     source: Mapped[str] = mapped_column(String(20), default="manual", nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    items: Mapped[list["MealItem"]] = relationship(
+    items: Mapped[list[MealItem]] = relationship(
         back_populates="meal", cascade="all, delete-orphan"
     )
-    photos: Mapped[list["MealPhoto"]] = relationship(
+    photos: Mapped[list[MealPhoto]] = relationship(
         back_populates="meal", cascade="all, delete-orphan"
     )
 
@@ -72,7 +72,7 @@ class MealItem(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     ai_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
     user_confirmed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    meal: Mapped["Meal"] = relationship(back_populates="items")
+    meal: Mapped[Meal] = relationship(back_populates="items")
 
 
 class MealPhoto(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -101,4 +101,4 @@ class MealPhoto(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         JSON, nullable=True
     )
 
-    meal: Mapped["Meal | None"] = relationship(back_populates="photos")
+    meal: Mapped[Meal | None] = relationship(back_populates="photos")

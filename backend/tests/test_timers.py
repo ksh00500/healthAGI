@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -109,7 +109,7 @@ async def test_timer_user_isolation(client: AsyncClient) -> None:
 async def test_timer_explicit_start_time(client: AsyncClient) -> None:
     token = await _register(client)
     h = {"Authorization": f"Bearer {token}"}
-    start = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat()
+    start = datetime(2026, 1, 1, 12, 0, tzinfo=UTC).isoformat()
     r = await client.post(
         "/v1/timers",
         json={

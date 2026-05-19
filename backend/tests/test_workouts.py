@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -44,7 +44,7 @@ async def test_workout_session_crud(client: AsyncClient) -> None:
     squat_id = r.json()[0]["id"]
 
     payload = {
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": datetime.now(UTC).isoformat(),
         "notes": "push day",
         "sets": [
             {"exercise_id": bench_id, "set_index": 1, "reps": 8, "weight_kg": "60.0"},

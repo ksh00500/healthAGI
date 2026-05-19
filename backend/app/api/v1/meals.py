@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, SessionDep
@@ -28,7 +28,7 @@ def _recompute_totals(meal: Meal) -> None:
     meal.total_fat_g = s("fat_g")
 
 
-def _load_meal_stmt(user_id: UUID, meal_id: UUID | None = None):
+def _load_meal_stmt(user_id: UUID, meal_id: UUID | None = None) -> Select[tuple[Meal]]:
     stmt = (
         select(Meal)
         .options(selectinload(Meal.items))
@@ -51,8 +51,8 @@ async def list_meals(
     if since is not None:
         stmt = stmt.where(Meal.updated_at > since)
     if day is not None:
-        start = datetime.combine(day, time.min, tzinfo=timezone.utc)
-        end = datetime.combine(day, time.max, tzinfo=timezone.utc)
+        start = datetime.combine(day, time.min, tzinfo=UTC)
+        end = datetime.combine(day, time.max, tzinfo=UTC)
         stmt = stmt.where(Meal.eaten_at >= start, Meal.eaten_at <= end)
     stmt = stmt.order_by(Meal.eaten_at.desc()).limit(limit)
     rows = await session.scalars(stmt)
@@ -100,7 +100,7 @@ async def create_meal(
 
     meal = Meal(
         user_id=user.id,
-        eaten_at=payload.eaten_at or datetime.now(timezone.utc),
+        eaten_at=payload.eaten_at or datetime.now(UTC),
         meal_type=payload.meal_type,
         raw_input=payload.raw_input,
         source="photo" if photo is not None else payload.source,
@@ -113,7 +113,9 @@ async def create_meal(
     if photo is not None:
         photo.meal_id = meal.id
     await session.commit()
-    return await session.scalar(_load_meal_stmt(user.id, meal.id))
+    reloaded = await session.scalar(_load_meal_stmt(user.id, meal.id))
+    assert reloaded is not None
+    return reloaded
 
 
 @router.patch("/{meal_id}", response_model=MealRead)
@@ -136,7 +138,9 @@ async def update_meal(
             meal.items.append(it)
         _recompute_totals(meal)
     await session.commit()
-    return await session.scalar(_load_meal_stmt(user.id, meal_id))
+    reloaded = await session.scalar(_load_meal_stmt(user.id, meal_id))
+    assert reloaded is not None
+    return reloaded
 
 
 @router.delete("/{meal_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -146,5 +150,5 @@ async def delete_meal(
     meal = await session.scalar(_load_meal_stmt(user.id, meal_id))
     if not meal:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "meal not found")
-    meal.deleted_at = datetime.now(timezone.utc)
+    meal.deleted_at = datetime.now(UTC)
     await session.commit()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -111,7 +111,6 @@ async def delete_body_metric(
     )
     if not metric:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "metric not found")
-    from datetime import timezone as _tz
 
-    metric.deleted_at = datetime.now(_tz.utc)
+    metric.deleted_at = datetime.now(UTC)
     await session.commit()

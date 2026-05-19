@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -42,7 +42,7 @@ async def test_body_metric_crud(client: AsyncClient) -> None:
     r = await client.post(
         "/v1/profile/body-metrics",
         json={
-            "measured_at": datetime.now(timezone.utc).isoformat(),
+            "measured_at": datetime.now(UTC).isoformat(),
             "weight_kg": "76.4",
             "sleep_hours": "7.5",
         },

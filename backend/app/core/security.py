@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -26,14 +26,15 @@ def verify_password(hashed: str, plain: str) -> bool:
 
 def _create_token(subject: str, expires_delta: timedelta, token_type: str) -> str:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,
         "iat": int(now.timestamp()),
         "exp": int((now + expires_delta).timestamp()),
         "type": token_type,
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    token: str = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return token
 
 
 def create_access_token(user_id: UUID) -> str:

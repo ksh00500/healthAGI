@@ -81,8 +81,10 @@ def parse_json_lenient(text: str) -> dict[str, Any]:
         # ```json\n...\n```
         s = s.strip("`")
         s = s.removeprefix("json").strip()
+    parsed: dict[str, Any]
     try:
-        return json.loads(s)
+        parsed = json.loads(s)
+        return parsed
     except json.JSONDecodeError:
         pass
     # Fallback: substring between first `{` and last `}`.
@@ -90,7 +92,8 @@ def parse_json_lenient(text: str) -> dict[str, Any]:
     end = s.rfind("}")
     if start >= 0 and end > start:
         try:
-            return json.loads(s[start : end + 1])
+            parsed = json.loads(s[start : end + 1])
+            return parsed
         except json.JSONDecodeError as e:
             raise ValueError(f"LLM did not return valid JSON: {e}") from e
     raise ValueError("LLM did not return valid JSON")

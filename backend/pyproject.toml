@@ -58,11 +58,17 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC", "S", "T20"]
-ignore = ["S101"]  # assert ok in tests
+ignore = [
+  "S101",  # assert ok in tests
+  "B008",  # FastAPI uses function-call defaults (Query, Depends, ...) by design
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "E501"]
 "alembic/**" = ["E501"]
+"app/config.py" = ["S104", "S105"]   # default 0.0.0.0 host + placeholder minio pwd
+"app/schemas/auth.py" = ["S105"]      # "bearer" is a token type, not a password
+"app/api/v1/voice_ws.py" = ["S110"]   # intentional best-effort cleanup on session close
 
 [tool.mypy]
 python_version = "3.12"

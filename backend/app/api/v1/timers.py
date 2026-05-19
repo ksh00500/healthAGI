@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, SessionDep
@@ -12,14 +13,14 @@ from app.models.exercise import Exercise
 from app.models.muscle_group import MuscleGroup
 from app.models.recovery_timer import RecoveryTimer
 from app.models.workout import WorkoutSession, WorkoutSet
-from app.schemas.recommendation import SuggestRequest, SuggestResponse, SuggestedTimer
+from app.schemas.recommendation import SuggestedTimer, SuggestRequest, SuggestResponse
 from app.schemas.timer import TimerCreate, TimerRead, TimerUpdate
 from app.services.recommendations import suggest_recovery_for_session
 
 router = APIRouter(prefix="/timers", tags=["timers"])
 
 
-async def _ensure_muscle_group(session, muscle_group_id: str) -> MuscleGroup:
+async def _ensure_muscle_group(session: AsyncSession, muscle_group_id: str) -> MuscleGroup:
     mg = await session.get(MuscleGroup, muscle_group_id)
     if not mg:
         raise HTTPException(
@@ -81,7 +82,7 @@ async def create_timer(
 
     mg = await _ensure_muscle_group(session, payload.muscle_group_id)
     duration = payload.duration_minutes or mg.default_recovery_hours * 60
-    start = payload.start_time or datetime.now(timezone.utc)
+    start = payload.start_time or datetime.now(UTC)
 
     timer = RecoveryTimer(
         user_id=user.id,
@@ -147,7 +148,7 @@ async def suggest_recovery(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
     elif payload.sets:
         # Build a transient (un-persisted) session with hydrated exercises.
-        ws = WorkoutSession(user_id=user.id, started_at=datetime.now(timezone.utc))
+        ws = WorkoutSession(user_id=user.id, started_at=datetime.now(UTC))
         ex_rows = await session.scalars(
             select(Exercise).where(Exercise.id.in_([s.exercise_id for s in payload.sets]))
         )
@@ -198,5 +199,5 @@ async def delete_timer(
     )
     if not timer:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "timer not found")
-    timer.deleted_at = datetime.now(timezone.utc)
+    timer.deleted_at = datetime.now(UTC)
     await session.commit()

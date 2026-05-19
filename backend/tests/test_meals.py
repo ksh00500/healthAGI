@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -20,7 +20,7 @@ async def test_meal_create_with_totals(client: AsyncClient) -> None:
     r = await client.post(
         "/v1/meals",
         json={
-            "eaten_at": datetime.now(timezone.utc).isoformat(),
+            "eaten_at": datetime.now(UTC).isoformat(),
             "meal_type": "lunch",
             "raw_input": "닭가슴살 200g + 밥 1공기",
             "items": [
@@ -41,8 +41,8 @@ async def test_meal_create_with_totals(client: AsyncClient) -> None:
 async def test_meal_filter_by_day(client: AsyncClient) -> None:
     token = await _register(client)
     h = {"Authorization": f"Bearer {token}"}
-    today = datetime(2026, 5, 11, 12, 0, tzinfo=timezone.utc)
-    yesterday = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    today = datetime(2026, 5, 11, 12, 0, tzinfo=UTC)
+    yesterday = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
     for ts in (today, yesterday):
         r = await client.post(
             "/v1/meals",

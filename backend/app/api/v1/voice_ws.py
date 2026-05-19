@@ -5,6 +5,7 @@ import base64
 import io
 import logging
 import wave
+from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
 
@@ -33,7 +34,7 @@ router = APIRouter(tags=["voice-ws"])
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 
 
-def _open_session(ws: WebSocket):
+def _open_session(ws: WebSocket) -> AsyncGenerator[AsyncSession, None]:
     """Resolve the get_session dep, honoring app.dependency_overrides (tests)."""
     factory = ws.app.dependency_overrides.get(get_session) or get_session
     return factory()
@@ -314,7 +315,9 @@ async def voice_ws(
 
             elif mtype == "audio":
                 if audio_file is not None:
-                    await send({"type": "error", "message": "audio_file already set; reset with start"})
+                    await send(
+                        {"type": "error", "message": "audio_file already set; reset with start"}
+                    )
                     continue
                 try:
                     frame = base64.b64decode(msg.get("pcm_b64") or "", validate=False)

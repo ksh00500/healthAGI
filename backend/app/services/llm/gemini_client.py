@@ -104,7 +104,7 @@ class GeminiClient(LLMClient):
         prompt_tokens: int | None = None
         output_tokens: int | None = None
         try:
-            stream = self._client.aio.models.generate_content_stream(
+            stream = await self._client.aio.models.generate_content_stream(
                 model=target_model,
                 contents=contents,
                 config=cfg,

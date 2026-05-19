@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -36,7 +36,7 @@ def get_engine() -> AsyncEngine:
     return engine
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     _, factory = _ensure_engine()
     async with factory() as session:
         yield session

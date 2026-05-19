@@ -38,7 +38,7 @@ class WhisperClient(STTClient):
             if self._model is not None:
                 return self._model
             try:
-                from faster_whisper import WhisperModel  # type: ignore
+                from faster_whisper import WhisperModel
             except ImportError as e:
                 raise RuntimeError(
                     "faster-whisper not installed. `pip install faster-whisper`"

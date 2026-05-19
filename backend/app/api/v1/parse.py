@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.deps import CurrentUser, SessionDep
@@ -81,7 +82,7 @@ def _int_or_none(v: Any) -> int | None:
         return None
 
 
-async def _match_exercise(session, name: str) -> str | None:
+async def _match_exercise(session: AsyncSession, name: str) -> str | None:
     if not name:
         return None
     needle = f"%{name.lower()}%"

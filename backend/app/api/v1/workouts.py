@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, SessionDep
@@ -20,7 +21,7 @@ from app.schemas.workout import (
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 
 
-async def _verify_exercises(session, set_inputs: list[WorkoutSetInput]) -> None:
+async def _verify_exercises(session: AsyncSession, set_inputs: list[WorkoutSetInput]) -> None:
     ids = {s.exercise_id for s in set_inputs}
     if not ids:
         return
@@ -34,7 +35,9 @@ async def _verify_exercises(session, set_inputs: list[WorkoutSetInput]) -> None:
         )
 
 
-def _load_session_stmt(user_id: UUID, session_id: UUID | None = None):
+def _load_session_stmt(
+    user_id: UUID, session_id: UUID | None = None
+) -> Select[tuple[WorkoutSession]]:
     stmt = (
         select(WorkoutSession)
         .options(selectinload(WorkoutSession.sets))
@@ -60,8 +63,8 @@ async def list_sessions(
     if since is not None:
         stmt = stmt.where(WorkoutSession.updated_at > since)
     if day is not None:
-        start = datetime.combine(day, time.min, tzinfo=timezone.utc)
-        end = datetime.combine(day, time.max, tzinfo=timezone.utc)
+        start = datetime.combine(day, time.min, tzinfo=UTC)
+        end = datetime.combine(day, time.max, tzinfo=UTC)
         stmt = stmt.where(WorkoutSession.started_at >= start, WorkoutSession.started_at <= end)
     stmt = stmt.order_by(WorkoutSession.started_at.desc()).limit(limit)
     rows = await session.scalars(stmt)
@@ -87,7 +90,7 @@ async def create_session(
     await _verify_exercises(session, payload.sets)
     ws = WorkoutSession(
         user_id=user.id,
-        started_at=payload.started_at or datetime.now(timezone.utc),
+        started_at=payload.started_at or datetime.now(UTC),
         ended_at=payload.ended_at,
         notes=payload.notes,
         raw_input=payload.raw_input,
@@ -106,7 +109,9 @@ async def create_session(
         )
     session.add(ws)
     await session.commit()
-    return await session.scalar(_load_session_stmt(user.id, ws.id))
+    reloaded = await session.scalar(_load_session_stmt(user.id, ws.id))
+    assert reloaded is not None
+    return reloaded
 
 
 @router.patch("/sessions/{session_id}", response_model=WorkoutSessionRead)
@@ -142,7 +147,9 @@ async def update_session(
             setattr(ws, field, data[field])
 
     await session.commit()
-    return await session.scalar(_load_session_stmt(user.id, session_id))
+    reloaded = await session.scalar(_load_session_stmt(user.id, session_id))
+    assert reloaded is not None
+    return reloaded
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -152,5 +159,5 @@ async def delete_session(
     ws = await session.scalar(_load_session_stmt(user.id, session_id))
     if not ws:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
-    ws.deleted_at = datetime.now(timezone.utc)
+    ws.deleted_at = datetime.now(UTC)
     await session.commit()

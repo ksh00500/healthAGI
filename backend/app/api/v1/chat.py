@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
@@ -26,7 +27,7 @@ from app.services.llm.prompts import build_system_prompt, turns_from_history
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def _detail_stmt(user_id: UUID, conv_id: UUID):
+def _detail_stmt(user_id: UUID, conv_id: UUID) -> Select[tuple[ChatConversation]]:
     return (
         select(ChatConversation)
         .options(selectinload(ChatConversation.messages))
@@ -89,13 +90,13 @@ async def delete_conversation(
     conv = await session.scalar(_detail_stmt(user.id, conv_id))
     if not conv:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "conversation not found")
-    conv.deleted_at = datetime.now(timezone.utc)
+    conv.deleted_at = datetime.now(UTC)
     await session.commit()
 
 
-def _sse(event: str, payload: dict) -> bytes:
+def _sse(event: str, payload: dict[str, Any]) -> bytes:
     """Encode a single Server-Sent Event with JSON payload + named event."""
-    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n".encode()
 
 
 @router.post("/conversations/{conv_id}/messages")

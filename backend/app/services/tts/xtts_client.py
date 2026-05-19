@@ -35,7 +35,7 @@ class XTTSClient(TTSClient):
             if self._model is not None:
                 return self._model
             try:
-                from TTS.api import TTS  # type: ignore
+                from TTS.api import TTS
             except ImportError as e:
                 raise RuntimeError(
                     "Coqui TTS not installed. `pip install TTS`"

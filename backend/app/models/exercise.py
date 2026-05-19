@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, JSON, String, UniqueConstraint, Uuid
+from sqlalchemy import JSON, Boolean, ForeignKey, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -30,10 +30,10 @@ class Exercise(UUIDPKMixin, TimestampMixin, Base):
     is_compound: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_by_ai: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    aliases: Mapped[list["ExerciseAlias"]] = relationship(
+    aliases: Mapped[list[ExerciseAlias]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
     )
-    sets: Mapped[list["WorkoutSet"]] = relationship(back_populates="exercise")
+    sets: Mapped[list[WorkoutSet]] = relationship(back_populates="exercise")
 
 
 class ExerciseAlias(UUIDPKMixin, TimestampMixin, Base):
@@ -46,7 +46,7 @@ class ExerciseAlias(UUIDPKMixin, TimestampMixin, Base):
     )
     alias: Mapped[str] = mapped_column(String(120), nullable=False)
 
-    exercise: Mapped["Exercise"] = relationship(back_populates="aliases")
+    exercise: Mapped[Exercise] = relationship(back_populates="aliases")
 
     __table_args__ = (UniqueConstraint("exercise_id", "alias", name="uq_exercise_alias"),)
 

@@ -28,7 +28,7 @@ class WorkoutSession(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_input: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    sets: Mapped[list["WorkoutSet"]] = relationship(
+    sets: Mapped[list[WorkoutSet]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="WorkoutSet.set_index"
     )
 
@@ -60,5 +60,5 @@ class WorkoutSet(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     is_warmup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    session: Mapped["WorkoutSession"] = relationship(back_populates="sets")
-    exercise: Mapped["Exercise"] = relationship(back_populates="sets")
+    session: Mapped[WorkoutSession] = relationship(back_populates="sets")
+    exercise: Mapped[Exercise] = relationship(back_populates="sets")

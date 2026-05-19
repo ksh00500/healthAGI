@@ -39,7 +39,7 @@ class MinIOStorage(Storage):
             if self._client is not None:
                 return self._client
             try:
-                from minio import Minio  # type: ignore
+                from minio import Minio
             except ImportError as e:
                 raise RuntimeError(
                     "minio SDK not installed. `pip install minio`"
@@ -82,7 +82,8 @@ class MinIOStorage(Storage):
         def _get() -> bytes:
             response = client.get_object(self.bucket, key)
             try:
-                return response.read()
+                data: bytes = response.read()
+                return data
             finally:
                 response.close()
                 response.release_conn()
@@ -101,9 +102,10 @@ class MinIOStorage(Storage):
         if self._client is None:
             return None
         try:
-            return self._client.presigned_get_object(
+            url: str = self._client.presigned_get_object(
                 self.bucket, key, expires=timedelta(seconds=expires_seconds)
             )
+            return url
         except Exception:  # noqa: BLE001
             logger.exception("failed to make presigned url for %s", key)
             return None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -50,7 +50,7 @@ _REC_USER = (
 
 async def _build_source_context(session: AsyncSession, user: User) -> dict[str, Any]:
     """Snapshot used to ground the recommendations (also stored for audit)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     three_days_ago = now - timedelta(days=3)
 
@@ -63,8 +63,8 @@ async def _build_source_context(session: AsyncSession, user: User) -> dict[str, 
         )
     )
     latest: dict[str, RecoveryTimer] = {}
-    for t in sorted(timers, key=lambda x: x.start_time, reverse=True):
-        latest.setdefault(t.muscle_group_id, t)
+    for timer in sorted(timers, key=lambda x: x.start_time, reverse=True):
+        latest.setdefault(timer.muscle_group_id, timer)
 
     groups = list(await session.scalars(select(MuscleGroup)))
     recovering: list[dict[str, Any]] = []
@@ -103,7 +103,11 @@ async def _build_source_context(session: AsyncSession, user: User) -> dict[str, 
             "date": s.started_at.strftime("%Y-%m-%d"),
             "sets": len([st for st in s.sets if not st.is_warmup]),
             "volume_kg": round(
-                sum(((st.reps or 0) * float(st.weight_kg or 0)) for st in s.sets if not st.is_warmup),
+                sum(
+                    (st.reps or 0) * float(st.weight_kg or 0)
+                    for st in s.sets
+                    if not st.is_warmup
+                ),
                 1,
             ),
         }
@@ -122,7 +126,10 @@ async def _build_source_context(session: AsyncSession, user: User) -> dict[str, 
 
     def _avg(attr: str) -> float:
         vals = [float(getattr(m, attr) or 0) for m in meals]
-        return round(sum(vals) / max(1, len({m.eaten_at.date() for m in meals})), 1) if vals else 0.0
+        if not vals:
+            return 0.0
+        days = max(1, len({m.eaten_at.date() for m in meals}))
+        return round(sum(vals) / days, 1)
 
     return {
         "as_of": now.isoformat(),
@@ -147,7 +154,7 @@ async def generate_recommendations(
     """Build 3 recommendation cards via LLM and upsert them for the user/date."""
     settings = get_settings()
     if for_date is None:
-        for_date = datetime.now(timezone.utc).date()
+        for_date = datetime.now(UTC).date()
 
     system_prompt = await build_system_prompt(session, user)
     context = await _build_source_context(session, user)
@@ -218,11 +225,13 @@ async def generate_recommendations(
 
 
 _TIMER_SUGGEST_USER = (
-    "방금 완료한 운동 세션을 보고, 운동한 각 부위에 대해 다음 회복 타이머의 권장 시간(시간 단위)을 제안합니다.\n"
+    "방금 완료한 운동 세션을 보고, 운동한 각 부위에 대해 다음 회복 타이머의 "
+    "권장 시간(시간 단위)을 제안합니다.\n"
     "JSON 스키마:\n"
     "{\n"
     '  "suggestions": [\n'
-    '    {"muscle_group_id": "chest", "hours": 48.0, "intensity_score": 0.8, "reason": "벤치프레스 4세트, 평균 RPE 8"}\n'
+    '    {"muscle_group_id": "chest", "hours": 48.0, "intensity_score": 0.8, '
+    '"reason": "벤치프레스 4세트, 평균 RPE 8"}\n'
     "  ]\n"
     "}\n"
     "규칙:\n"

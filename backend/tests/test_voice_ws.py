@@ -16,8 +16,8 @@ from app.models.profile import Profile
 from app.models.user import User
 from app.services.llm.mock_client import get_mock_client  # noqa: F401  (used in skipped tests)
 from app.services.stt.mock_client import get_mock_stt  # noqa: F401
-from app.services.tts.mock_client import get_mock_tts  # noqa: F401
 from app.services.tts.base import split_sentences
+from app.services.tts.mock_client import get_mock_tts  # noqa: F401
 from app.services.vad.mock import get_mock_vad
 
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, JSON, String, Text, Uuid
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -21,7 +21,7 @@ class ChatConversation(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     mode: Mapped[str] = mapped_column(String(10), default="text", nullable=False)  # text | voice
 
-    messages: Mapped[list["ChatMessage"]] = relationship(
+    messages: Mapped[list[ChatMessage]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
         order_by="ChatMessage.created_at",
@@ -48,7 +48,7 @@ class ChatMessage(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
     model: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
-    conversation: Mapped["ChatConversation"] = relationship(back_populates="messages")
+    conversation: Mapped[ChatConversation] = relationship(back_populates="messages")
 
 
 if TYPE_CHECKING:

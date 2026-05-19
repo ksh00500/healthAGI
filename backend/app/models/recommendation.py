@@ -4,7 +4,7 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, ForeignKey, Index, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import JSON, Date, ForeignKey, Index, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base

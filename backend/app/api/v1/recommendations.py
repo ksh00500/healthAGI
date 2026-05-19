@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 async def list_today(
     user: CurrentUser, session: SessionDep
 ) -> list[DailyRecommendation]:
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     rows = await session.scalars(
         select(DailyRecommendation)
         .where(
@@ -38,7 +38,7 @@ async def list_today(
 async def generate(
     payload: GenerateRequest, user: CurrentUser, session: SessionDep
 ) -> list[DailyRecommendation]:
-    target = payload.for_date or datetime.now(timezone.utc).date()
+    target = payload.for_date or datetime.now(UTC).date()
     if not payload.force:
         existing = list(
             await session.scalars(

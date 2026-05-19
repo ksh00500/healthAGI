@@ -31,12 +31,12 @@ class PiperClient(TTSClient):
             if self._voice is not None:
                 return self._voice
             try:
-                from piper import PiperVoice  # type: ignore
+                from piper import PiperVoice
             except ImportError as e:
                 raise RuntimeError(
                     "piper-tts not installed. `pip install piper-tts`"
                 ) from e
-            if not Path(self.voice_path).exists():
+            if not await asyncio.to_thread(Path(self.voice_path).exists):
                 raise RuntimeError(f"Piper voice file not found: {self.voice_path}")
             logger.info("loading piper voice=%s", self.voice_path)
             self._voice = await asyncio.to_thread(PiperVoice.load, self.voice_path)

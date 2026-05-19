@@ -30,11 +30,10 @@ class SileroVAD(VADClient):
             if self._model is not None and self._utils is not None:
                 return self._model, self._utils
             try:
-                import torch  # type: ignore # noqa: F401  (silero-vad uses torch)
-                from silero_vad import load_silero_vad  # type: ignore
+                import torch  # noqa: F401  (silero-vad uses torch)
 
                 # silero_vad>=5 also exposes get_speech_timestamps via the package
-                from silero_vad import get_speech_timestamps  # type: ignore
+                from silero_vad import get_speech_timestamps, load_silero_vad
             except ImportError as e:
                 raise RuntimeError(
                     "silero-vad not installed. `pip install silero-vad torch`"
@@ -45,7 +44,7 @@ class SileroVAD(VADClient):
             return self._model, self._utils
 
     async def check(self, pcm16_mono: bytes, sample_rate: int = 16000) -> VADResult:
-        import numpy as np  # type: ignore
+        import numpy as np
 
         model, get_ts = await self._load()
 

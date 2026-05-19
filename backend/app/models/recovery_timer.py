@@ -37,7 +37,7 @@ class RecoveryTimer(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         Uuid(as_uuid=True), nullable=True, unique=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="recovery_timers")
+    user: Mapped[User] = relationship(back_populates="recovery_timers")
 
     __table_args__ = (
         Index(

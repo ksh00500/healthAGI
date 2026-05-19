@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -32,7 +32,7 @@ def _decimal(v: Decimal | None) -> str:
 def as_utc(dt: datetime) -> datetime:
     """SQLite returns naive datetimes; coerce to UTC so arithmetic with now() works."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -75,7 +75,7 @@ async def _profile_section(session: AsyncSession, user: User, profile: Profile |
         .order_by(BodyMetric.measured_at.desc())
         .limit(1)
     )
-    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    week_ago = datetime.now(UTC) - timedelta(days=7)
     older = await session.scalar(
         select(BodyMetric)
         .where(
@@ -113,10 +113,10 @@ async def _recovery_section(session: AsyncSession, user: User) -> str:
         .order_by(RecoveryTimer.start_time.desc())
     )
     latest: dict[str, RecoveryTimer] = {}
-    for t in timers:
-        latest.setdefault(t.muscle_group_id, t)
+    for timer in timers:
+        latest.setdefault(timer.muscle_group_id, timer)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lines: list[str] = ["[회복 상태]"]
     for g in groups_list:
         t = latest.get(g.id)
@@ -134,7 +134,7 @@ async def _recovery_section(session: AsyncSession, user: User) -> str:
 
 
 async def _workout_section(session: AsyncSession, user: User) -> str:
-    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    week_ago = datetime.now(UTC) - timedelta(days=7)
     stmt = (
         select(WorkoutSession)
         .options(selectinload(WorkoutSession.sets))
@@ -159,7 +159,7 @@ async def _workout_section(session: AsyncSession, user: User) -> str:
 
 
 async def _meal_section(session: AsyncSession, user: User) -> str:
-    three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+    three_days_ago = datetime.now(UTC) - timedelta(days=3)
     stmt = (
         select(Meal)
         .where(

@@ -42,9 +42,10 @@ class OllamaClient(LLMClient):
             ) as response:
                 if response.status_code != 200:
                     body = await response.aread()
+                    snippet = body.decode(errors="ignore")[:200]
                     yield ChatChunk(
                         kind="error",
-                        error=f"ollama {response.status_code}: {body.decode(errors='ignore')[:200]}",
+                        error=f"ollama {response.status_code}: {snippet}",
                     )
                     return
                 async for line in response.aiter_lines():
