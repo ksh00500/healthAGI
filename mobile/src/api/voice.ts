@@ -1,7 +1,7 @@
 import { hydrateTokens } from '@/api/client';
 import { API_BASE_URL } from '@/lib/config';
 import { loadTokens } from '@/lib/storage';
-import type { VoiceTurnResponse } from '@/api/types';
+import type { ParsedMeal, ParsedWorkout, VoiceTurnResponse } from '@/api/types';
 
 /**
  * Upload a recorded audio file to /voice/turn as multipart and return the
@@ -36,4 +36,47 @@ export async function uploadVoiceTurn(args: {
     throw new Error(`voice/turn ${res.status}: ${text.slice(0, 200)}`);
   }
   return (await res.json()) as VoiceTurnResponse;
+}
+
+async function _uploadAudioParse<T>(
+  path: '/workouts/parse-audio' | '/meals/parse-audio',
+  args: { audioUri: string; audioMime: string; fileName?: string },
+): Promise<T> {
+  await hydrateTokens();
+  const tok = await loadTokens();
+  if (!tok) throw new Error('not authenticated');
+
+  const form = new FormData();
+  form.append('audio', {
+    uri: args.audioUri,
+    name: args.fileName ?? 'audio.m4a',
+    type: args.audioMime,
+  } as unknown as Blob);
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${tok.access}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${path} ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return (await res.json()) as T;
+}
+
+export function parseWorkoutAudio(args: {
+  audioUri: string;
+  audioMime: string;
+  fileName?: string;
+}): Promise<ParsedWorkout> {
+  return _uploadAudioParse<ParsedWorkout>('/workouts/parse-audio', args);
+}
+
+export function parseMealAudio(args: {
+  audioUri: string;
+  audioMime: string;
+  fileName?: string;
+}): Promise<ParsedMeal> {
+  return _uploadAudioParse<ParsedMeal>('/meals/parse-audio', args);
 }

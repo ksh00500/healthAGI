@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,8 @@ from app.services.llm import get_llm_client
 from app.services.llm.base import ChatTurn
 
 router = APIRouter(tags=["parse"])
+
+_MAX_AUDIO_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 class ParseTextRequest(BaseModel):
@@ -205,3 +207,123 @@ async def parse_meal(
             )
         )
     return ParsedMeal(items=out, raw=payload.text)
+
+
+# --- Audio parsers (voice input) ---
+
+
+async def _read_audio(audio: UploadFile) -> tuple[bytes, str]:
+    data = await audio.read()
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "empty audio")
+    if len(data) > _MAX_AUDIO_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "audio too large")
+    return data, audio.content_type or "audio/m4a"
+
+
+def _build_workout_from_json(
+    data: dict[str, Any],
+) -> tuple[list[ParsedExercise], str | None, str]:
+    exercises_raw = data.get("exercises") or []
+    out: list[ParsedExercise] = []
+    for ex_raw in exercises_raw:
+        name = (ex_raw.get("name") or "").strip()
+        sets_raw = ex_raw.get("sets") or []
+        sets_out: list[ParsedSet] = []
+        for i, s in enumerate(sets_raw, start=1):
+            sets_out.append(
+                ParsedSet(
+                    set_index=_int_or_none(s.get("set_index")) or i,
+                    reps=_int_or_none(s.get("reps")),
+                    weight_kg=_decimal_or_none(s.get("weight_kg")),
+                    rpe=_decimal_or_none(s.get("rpe")),
+                    is_warmup=bool(s.get("is_warmup", False)),
+                )
+            )
+        out.append(ParsedExercise(matched_exercise_id=None, name=name, sets=sets_out))
+    return out, data.get("notes"), str(data.get("transcript") or "")
+
+
+@router.post("/workouts/parse-audio", response_model=ParsedWorkout)
+async def parse_workout_audio(
+    _user: CurrentUser,
+    session: SessionDep,
+    audio: UploadFile = File(..., description="audio blob"),
+) -> ParsedWorkout:
+    audio_bytes, mime = await _read_audio(audio)
+    llm = get_llm_client()
+    prompt = (
+        _WORKOUT_PROMPT
+        + "\n\n오디오는 한국어 음성입니다. 먼저 음성을 받아쓰기한 뒤 같은 JSON 객체의"
+        ' "transcript" 필드에 한국어 받아쓰기 결과를 함께 포함하세요.'
+    )
+    try:
+        data = await llm.complete_audio_json(
+            system_prompt=prompt,
+            user_prompt="이 음성에 담긴 운동 기록을 JSON으로 변환하세요.",
+            audio_bytes=audio_bytes,
+            audio_mime=mime,
+        )
+    except NotImplementedError as e:
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "current LLM backend does not support audio input",
+        ) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"LLM parse failed: {e}"
+        ) from e
+
+    out_exercises, notes, transcript = _build_workout_from_json(data)
+    # Backfill matched_exercise_id using the same name-based lookup.
+    for ex in out_exercises:
+        ex.matched_exercise_id = await _match_exercise(session, ex.name)
+    return ParsedWorkout(exercises=out_exercises, notes=notes, raw=transcript)
+
+
+@router.post("/meals/parse-audio", response_model=ParsedMeal)
+async def parse_meal_audio(
+    _user: CurrentUser,
+    _session: SessionDep,
+    audio: UploadFile = File(..., description="audio blob"),
+) -> ParsedMeal:
+    audio_bytes, mime = await _read_audio(audio)
+    llm = get_llm_client()
+    prompt = (
+        _MEAL_PROMPT
+        + '\n\n오디오는 한국어 음성입니다. JSON에 "transcript" 필드를 추가해 받아쓰기'
+        " 결과를 함께 포함하세요."
+    )
+    try:
+        data = await llm.complete_audio_json(
+            system_prompt=prompt,
+            user_prompt="이 음성에 담긴 식단을 JSON으로 변환하세요.",
+            audio_bytes=audio_bytes,
+            audio_mime=mime,
+        )
+    except NotImplementedError as e:
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "current LLM backend does not support audio input",
+        ) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"LLM parse failed: {e}"
+        ) from e
+
+    transcript = str(data.get("transcript") or "")
+    items_raw = data.get("items") or []
+    out: list[ParsedMealItem] = []
+    for i in items_raw:
+        out.append(
+            ParsedMealItem(
+                name=(i.get("name") or "").strip() or "unknown",
+                serving_g=_decimal_or_none(i.get("serving_g")),
+                kcal=_decimal_or_none(i.get("kcal")),
+                protein_g=_decimal_or_none(i.get("protein_g")),
+                carbs_g=_decimal_or_none(i.get("carbs_g")),
+                fat_g=_decimal_or_none(i.get("fat_g")),
+                confidence=_decimal_or_none(i.get("confidence")),
+            )
+        )
+    return ParsedMeal(items=out, raw=transcript)

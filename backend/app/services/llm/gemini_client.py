@@ -170,3 +170,32 @@ class GeminiClient(LLMClient):
             config=cfg,
         )
         return parse_json_lenient(res.text or "")
+
+    async def complete_audio_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        audio_bytes: bytes,
+        audio_mime: str = "audio/m4a",
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        from google.genai import types
+
+        s = get_settings()
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type=audio_mime),
+                    types.Part.from_text(text=user_prompt),
+                ],
+            )
+        ]
+        cfg = self._config(system_prompt, temperature, json_mode=True)
+        res = await self._client.aio.models.generate_content(
+            model=model or s.llm_parse_model,
+            contents=contents,
+            config=cfg,
+        )
+        return parse_json_lenient(res.text or "")

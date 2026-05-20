@@ -20,9 +20,7 @@ class MuscleGroup(Base):
 SEED_MUSCLE_GROUPS: list[dict[str, object]] = [
     {"id": "chest", "ko": "가슴", "en": "Chest", "hours": 48, "order": 10},
     {"id": "back", "ko": "등", "en": "Back", "hours": 48, "order": 20},
-    {"id": "shoulders_front", "ko": "어깨 전면", "en": "Front Delts", "hours": 48, "order": 30},
-    {"id": "shoulders_side", "ko": "어깨 측면", "en": "Side Delts", "hours": 48, "order": 31},
-    {"id": "shoulders_rear", "ko": "어깨 후면", "en": "Rear Delts", "hours": 48, "order": 32},
+    {"id": "shoulders", "ko": "어깨", "en": "Shoulders", "hours": 48, "order": 30},
     {"id": "biceps", "ko": "이두", "en": "Biceps", "hours": 24, "order": 40},
     {"id": "triceps", "ko": "삼두", "en": "Triceps", "hours": 24, "order": 41},
     {"id": "forearms", "ko": "전완", "en": "Forearms", "hours": 24, "order": 42},

@@ -22,12 +22,15 @@ class MockLLMClient(LLMClient):
         replies: list[str] | None = None,
         json_replies: list[dict[str, Any]] | None = None,
         vision_replies: list[dict[str, Any]] | None = None,
+        audio_replies: list[dict[str, Any]] | None = None,
     ) -> None:
         self.replies = list(replies or [])
         self.json_replies = list(json_replies or [])
         self.vision_replies = list(vision_replies or [])
+        self.audio_replies = list(audio_replies or [])
         self.calls: list[list[ChatTurn]] = []
         self.vision_calls: list[tuple[str, str, int]] = []  # (system, user, image_size)
+        self.audio_calls: list[tuple[str, str, int]] = []   # (system, user, audio_size)
 
     def queue(self, text: str) -> None:
         self.replies.append(text)
@@ -37,6 +40,9 @@ class MockLLMClient(LLMClient):
 
     def queue_vision(self, obj: dict[str, Any]) -> None:
         self.vision_replies.append(obj)
+
+    def queue_audio(self, obj: dict[str, Any]) -> None:
+        self.audio_replies.append(obj)
 
     async def chat_stream(
         self,
@@ -87,6 +93,20 @@ class MockLLMClient(LLMClient):
         if self.vision_replies:
             return self.vision_replies.pop(0)
         return {"items": []}
+
+    async def complete_audio_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        audio_bytes: bytes,
+        audio_mime: str = "audio/m4a",
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        self.audio_calls.append((system_prompt, user_prompt, len(audio_bytes)))
+        if self.audio_replies:
+            return self.audio_replies.pop(0)
+        return {"items": [], "exercises": [], "transcript": ""}
 
 
 _singleton: MockLLMClient | None = None

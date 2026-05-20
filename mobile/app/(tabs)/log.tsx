@@ -27,6 +27,7 @@ import {
   searchExercises,
   suggestRecoveryForSession,
 } from '@/api/endpoints';
+import { parseMealAudio, parseWorkoutAudio } from '@/api/voice';
 import type {
   Exercise,
   Meal,
@@ -36,6 +37,7 @@ import type {
   WorkoutSetInput,
 } from '@/api/types';
 import { useTimers } from '@/features/timers/store';
+import { useVoiceRecorder } from '@/features/voice/recorder';
 import { isoDay, sessionVolumeKg } from '@/features/workouts/helpers';
 
 type Tab = 'workout' | 'meal';
@@ -183,54 +185,94 @@ function WorkoutPanel() {
     }
   };
 
+  const applyParsedWorkout = async (parsed: {
+    exercises: Array<{
+      matched_exercise_id: string | null;
+      name: string;
+      sets: Array<{
+        reps?: number | null;
+        weight_kg?: string | null;
+        rpe?: string | null;
+        is_warmup: boolean;
+      }>;
+    }>;
+    notes?: string | null;
+  }) => {
+    const ex = parsed.exercises;
+    if (ex.length === 0) {
+      Alert.alert('파싱 결과 없음', '입력에서 운동을 찾지 못했어요.');
+      return;
+    }
+    const unresolved: string[] = [];
+    const newDrafts: SetDraft[] = [];
+    for (const e of ex) {
+      let exercise: Exercise | null = null;
+      if (e.matched_exercise_id) {
+        const list = await searchExercises(e.name);
+        exercise = list.find((x) => x.id === e.matched_exercise_id) ?? null;
+      }
+      if (!exercise) {
+        unresolved.push(e.name);
+        continue;
+      }
+      for (const s of e.sets) {
+        newDrafts.push({
+          exercise,
+          reps: s.reps != null ? String(s.reps) : '',
+          weight_kg: s.weight_kg ?? '',
+          rpe: s.rpe ?? '',
+          is_warmup: s.is_warmup,
+        });
+      }
+    }
+    if (newDrafts.length > 0) {
+      setDrafts((cur) => [...cur, ...newDrafts]);
+    }
+    if (parsed.notes && !notes) setNotes(parsed.notes);
+    if (unresolved.length > 0) {
+      Alert.alert(
+        '일부 운동 매칭 실패',
+        `다음 운동은 직접 추가해주세요:\n${unresolved.join(', ')}`,
+      );
+    }
+  };
+
   const onAiParse = async () => {
     if (!aiInput.trim()) return;
     setAiBusy(true);
     try {
       const parsed = await parseWorkoutText(aiInput.trim());
-      const ex = parsed.exercises;
-      if (ex.length === 0) {
-        Alert.alert('파싱 결과 없음', '입력 텍스트에서 운동을 찾지 못했어요.');
-        return;
-      }
-      // Resolve each parsed exercise → real Exercise object.
-      const unresolved: string[] = [];
-      const newDrafts: SetDraft[] = [];
-      for (const e of ex) {
-        let exercise: Exercise | null = null;
-        if (e.matched_exercise_id) {
-          const list = await searchExercises(e.name);
-          exercise = list.find((x) => x.id === e.matched_exercise_id) ?? null;
-        }
-        if (!exercise) {
-          unresolved.push(e.name);
-          continue;
-        }
-        for (const s of e.sets) {
-          newDrafts.push({
-            exercise,
-            reps: s.reps != null ? String(s.reps) : '',
-            weight_kg: s.weight_kg ?? '',
-            rpe: s.rpe ?? '',
-            is_warmup: s.is_warmup,
-          });
-        }
-      }
-      if (newDrafts.length > 0) {
-        setDrafts((cur) => [...cur, ...newDrafts]);
-      }
-      if (parsed.notes && !notes) setNotes(parsed.notes);
+      await applyParsedWorkout(parsed);
       setAiInput('');
-      if (unresolved.length > 0) {
-        Alert.alert(
-          '일부 운동 매칭 실패',
-          `다음 운동은 직접 추가해주세요:\n${unresolved.join(', ')}`,
-        );
-      }
     } catch (e) {
       Alert.alert('AI 파싱 실패', String(e));
     } finally {
       setAiBusy(false);
+    }
+  };
+
+  const voice = useVoiceRecorder();
+  const onVoiceToggle = async () => {
+    try {
+      if (!voice.recording) {
+        await voice.start();
+        return;
+      }
+      const rec = await voice.stop();
+      if (!rec) return;
+      setAiBusy(true);
+      try {
+        const parsed = await parseWorkoutAudio({
+          audioUri: rec.uri,
+          audioMime: rec.mime,
+          fileName: rec.fileName,
+        });
+        await applyParsedWorkout(parsed);
+      } finally {
+        setAiBusy(false);
+      }
+    } catch (e) {
+      Alert.alert('음성 입력 실패', String(e));
     }
   };
 
@@ -277,13 +319,22 @@ function WorkoutPanel() {
             onChangeText={setAiInput}
             multiline
           />
-          <Pressable
-            style={[styles.aiBtn, (aiBusy || !aiInput.trim()) && { opacity: 0.5 }]}
-            onPress={onAiParse}
-            disabled={aiBusy || !aiInput.trim()}
-          >
-            <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
-          </Pressable>
+          <View style={styles.aiRow}>
+            <Pressable
+              style={[styles.aiBtn, { flex: 1 }, (aiBusy || !aiInput.trim()) && { opacity: 0.5 }]}
+              onPress={onAiParse}
+              disabled={aiBusy || !aiInput.trim()}
+            >
+              <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.micBtn, voice.recording && styles.micBtnActive, aiBusy && !voice.recording && { opacity: 0.5 }]}
+              onPress={onVoiceToggle}
+              disabled={aiBusy && !voice.recording}
+            >
+              <Text style={styles.micBtnText}>{voice.recording ? '■ 중지' : '🎤'}</Text>
+            </Pressable>
+          </View>
         </View>
 
         {drafts.map((d, i) => (
@@ -586,31 +637,68 @@ function MealPanel() {
     }
   };
 
+  const applyParsedMeal = (parsed: {
+    items: Array<{
+      name: string;
+      serving_g?: string | null;
+      kcal?: string | null;
+      protein_g?: string | null;
+      carbs_g?: string | null;
+      fat_g?: string | null;
+    }>;
+  }) => {
+    if (parsed.items.length === 0) {
+      Alert.alert('파싱 결과 없음', '입력에서 항목을 찾지 못했어요.');
+      return;
+    }
+    const newItems: ItemDraft[] = parsed.items.map((it) => ({
+      name: it.name,
+      serving_g: it.serving_g ?? '',
+      kcal: it.kcal ?? '',
+      protein_g: it.protein_g ?? '',
+      carbs_g: it.carbs_g ?? '',
+      fat_g: it.fat_g ?? '',
+    }));
+    setItems((cur) =>
+      cur.length === 1 && !cur[0]!.name ? newItems : [...cur, ...newItems],
+    );
+  };
+
   const onAiParse = async () => {
     if (!rawInput.trim()) return;
     setAiBusy(true);
     try {
       const parsed = await parseMealText(rawInput.trim());
-      if (parsed.items.length === 0) {
-        Alert.alert('파싱 결과 없음', '입력 텍스트에서 항목을 찾지 못했어요.');
-        return;
-      }
-      const newItems: ItemDraft[] = parsed.items.map((it) => ({
-        name: it.name,
-        serving_g: it.serving_g ?? '',
-        kcal: it.kcal ?? '',
-        protein_g: it.protein_g ?? '',
-        carbs_g: it.carbs_g ?? '',
-        fat_g: it.fat_g ?? '',
-      }));
-      // Replace empty starter row, else append.
-      setItems((cur) =>
-        cur.length === 1 && !cur[0]!.name ? newItems : [...cur, ...newItems],
-      );
+      applyParsedMeal(parsed);
     } catch (e) {
       Alert.alert('AI 파싱 실패', String(e));
     } finally {
       setAiBusy(false);
+    }
+  };
+
+  const voice = useVoiceRecorder();
+  const onVoiceToggle = async () => {
+    try {
+      if (!voice.recording) {
+        await voice.start();
+        return;
+      }
+      const rec = await voice.stop();
+      if (!rec) return;
+      setAiBusy(true);
+      try {
+        const parsed = await parseMealAudio({
+          audioUri: rec.uri,
+          audioMime: rec.mime,
+          fileName: rec.fileName,
+        });
+        applyParsedMeal(parsed);
+      } finally {
+        setAiBusy(false);
+      }
+    } catch (e) {
+      Alert.alert('음성 입력 실패', String(e));
     }
   };
 
@@ -678,13 +766,22 @@ function MealPanel() {
             value={rawInput}
             onChangeText={setRawInput}
           />
-          <Pressable
-            style={[styles.aiBtn, (aiBusy || !rawInput.trim()) && { opacity: 0.5 }]}
-            onPress={onAiParse}
-            disabled={aiBusy || !rawInput.trim()}
-          >
-            <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
-          </Pressable>
+          <View style={styles.aiRow}>
+            <Pressable
+              style={[styles.aiBtn, { flex: 1 }, (aiBusy || !rawInput.trim()) && { opacity: 0.5 }]}
+              onPress={onAiParse}
+              disabled={aiBusy || !rawInput.trim()}
+            >
+              <Text style={styles.aiBtnText}>{aiBusy ? '분석 중…' : '✨ AI 파싱'}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.micBtn, voice.recording && styles.micBtnActive, aiBusy && !voice.recording && { opacity: 0.5 }]}
+              onPress={onVoiceToggle}
+              disabled={aiBusy && !voice.recording}
+            >
+              <Text style={styles.micBtnText}>{voice.recording ? '■ 중지' : '🎤'}</Text>
+            </Pressable>
+          </View>
         </View>
 
         {items.map((it, i) => (
@@ -843,6 +940,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   aiBtnText: { color: '#fff', fontWeight: '600' },
+  aiRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  micBtn: {
+    backgroundColor: '#1f242c',
+    borderColor: '#374151',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 64,
+  },
+  micBtnActive: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
+  micBtnText: { color: '#fff', fontWeight: '600' },
   photoBtn: {
     backgroundColor: '#0ea5e9',
     borderRadius: 10,

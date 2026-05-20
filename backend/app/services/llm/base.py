@@ -69,6 +69,18 @@ class LLMClient(ABC):
         """Vision -> structured JSON. Default raises; concrete clients override."""
         raise NotImplementedError
 
+    async def complete_audio_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        audio_bytes: bytes,
+        audio_mime: str = "audio/m4a",
+        model: str | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        """Audio -> structured JSON. Default raises; concrete clients override."""
+        raise NotImplementedError
+
 
 def parse_json_lenient(text: str) -> dict[str, Any]:
     """Best-effort extraction of a JSON object from an LLM response.

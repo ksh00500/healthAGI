@@ -30,9 +30,7 @@ export async function listMuscleGroupsLocal(): Promise<MuscleGroup[]> {
 export const DEFAULT_MUSCLE_GROUPS: MuscleGroup[] = [
   { id: 'chest', display_name_ko: '가슴', display_name_en: 'Chest', default_recovery_hours: 48, sort_order: 10 },
   { id: 'back', display_name_ko: '등', display_name_en: 'Back', default_recovery_hours: 48, sort_order: 20 },
-  { id: 'shoulders_front', display_name_ko: '어깨 전면', display_name_en: 'Front Delts', default_recovery_hours: 48, sort_order: 30 },
-  { id: 'shoulders_side', display_name_ko: '어깨 측면', display_name_en: 'Side Delts', default_recovery_hours: 48, sort_order: 31 },
-  { id: 'shoulders_rear', display_name_ko: '어깨 후면', display_name_en: 'Rear Delts', default_recovery_hours: 48, sort_order: 32 },
+  { id: 'shoulders', display_name_ko: '어깨', display_name_en: 'Shoulders', default_recovery_hours: 48, sort_order: 30 },
   { id: 'biceps', display_name_ko: '이두', display_name_en: 'Biceps', default_recovery_hours: 24, sort_order: 40 },
   { id: 'triceps', display_name_ko: '삼두', display_name_en: 'Triceps', default_recovery_hours: 24, sort_order: 41 },
   { id: 'forearms', display_name_ko: '전완', display_name_en: 'Forearms', default_recovery_hours: 24, sort_order: 42 },
