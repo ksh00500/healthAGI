@@ -10,9 +10,10 @@ let configured = false;
 
 function getModule(): NotificationsModule | null {
   if (_mod) return _mod;
+  // In Expo Go SDK 53+ expo-notifications throws at module load time. Skip
+  // touching it entirely there — local notifications need a dev build anyway.
+  if (isExpoGo) return null;
   try {
-    // Lazy require so the module-level side effects only run when actually
-    // used. expo-notifications 55 throws on Expo Go push token auto-registration.
     _mod = require('expo-notifications') as NotificationsModule;
   } catch {
     return null;
