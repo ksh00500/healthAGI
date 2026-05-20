@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="postgresql+asyncpg://healthagi:changeme@localhost:5432/healthagi"
+        default="postgresql+asyncpg://healthagi:changeme@localhost:5435/healthagi"
     )
 
     # Auth
