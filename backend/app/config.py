@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _find_dotenv() -> tuple[str, ...]:
+    """Look for `.env` in backend/ then the repo root."""
+    here = Path(__file__).resolve().parent  # backend/app
+    candidates = [here.parent / ".env", here.parent.parent / ".env"]
+    return tuple(str(p) for p in candidates if p.exists()) or (".env",)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_find_dotenv(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

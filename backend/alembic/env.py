@@ -2,12 +2,30 @@ from __future__ import annotations
 
 import os
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.core.db import Base
 from app.models import *  # noqa: F401,F403  -- register tables
+
+
+def _load_dotenv() -> None:
+    """Load env vars from .env at backend/ or repo root (whichever exists)."""
+    here = Path(__file__).resolve().parent
+    for candidate in (here.parent / ".env", here.parent.parent / ".env"):
+        if candidate.exists():
+            for line in candidate.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+            break
+
+
+_load_dotenv()
 
 config = context.config
 
