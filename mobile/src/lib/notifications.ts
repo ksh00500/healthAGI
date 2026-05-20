@@ -1,32 +1,56 @@
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+const isExpoGo = Constants.appOwnership === 'expo';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+let _mod: NotificationsModule | null = null;
 let configured = false;
+
+function getModule(): NotificationsModule | null {
+  if (_mod) return _mod;
+  try {
+    // Lazy require so the module-level side effects only run when actually
+    // used. expo-notifications 55 throws on Expo Go push token auto-registration.
+    _mod = require('expo-notifications') as NotificationsModule;
+  } catch {
+    return null;
+  }
+  return _mod;
+}
 
 export async function ensureNotificationSetup(): Promise<void> {
   if (configured) return;
   configured = true;
 
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+  const Notifications = getModule();
+  if (!Notifications) return;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('recovery', {
-      name: '회복 타이머',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      vibrationPattern: [0, 250, 250, 250],
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
     });
-  }
 
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    await Notifications.requestPermissionsAsync();
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('recovery', {
+        name: '회복 타이머',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    }
+
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      await Notifications.requestPermissionsAsync();
+    }
+  } catch (e) {
+    console.warn('notification setup skipped:', e);
   }
 }
 
@@ -38,21 +62,37 @@ export interface ScheduleArgs {
 export async function scheduleRecoveryEnd(args: ScheduleArgs): Promise<string | null> {
   await ensureNotificationSetup();
   if (args.endTime.getTime() <= Date.now()) return null;
-  return Notifications.scheduleNotificationAsync({
-    content: {
-      title: '회복 완료',
-      body: `${args.muscleNameKo} 회복 타이머가 종료되었어요. 운동 가능합니다.`,
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: args.endTime,
-      channelId: Platform.OS === 'android' ? 'recovery' : undefined,
-    },
-  });
+
+  const Notifications = getModule();
+  if (!Notifications) return null;
+  if (isExpoGo) {
+    // Local notification scheduling still works on dev builds, but in Expo Go
+    // SDK 53+ this whole module is unreliable — skip silently.
+    return null;
+  }
+
+  try {
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '회복 완료',
+        body: `${args.muscleNameKo} 회복 타이머가 종료되었어요. 운동 가능합니다.`,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: args.endTime,
+        channelId: Platform.OS === 'android' ? 'recovery' : undefined,
+      },
+    });
+  } catch (e) {
+    console.warn('scheduleNotification failed:', e);
+    return null;
+  }
 }
 
 export async function cancelScheduled(id: string): Promise<void> {
+  const Notifications = getModule();
+  if (!Notifications) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(id);
   } catch {
