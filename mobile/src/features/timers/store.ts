@@ -5,6 +5,7 @@ import { DEFAULT_MUSCLE_GROUPS, cacheMuscleGroups, listMuscleGroupsLocal } from 
 import { dequeue, enqueue, listOutbox, recordFailure } from '@/db/outbox';
 import {
   type LocalTimer,
+  hardDeleteTimer,
   listCurrentTimers as listCurrentTimersLocal,
   markSynced,
   softDeleteTimer,
@@ -70,12 +71,27 @@ export const useTimers = create<TimersState>((set, get) => ({
         if (item.kind === 'timer.create') {
           const payload = JSON.parse(item.payload);
           const created = await createTimer(payload);
+          // The local stub used clientOpId as its primary key; replace it
+          // with the server-issued row so future deletes hit the real id.
+          if (payload.client_op_id && payload.client_op_id !== created.id) {
+            await hardDeleteTimer(payload.client_op_id);
+          }
           await upsertTimer(toLocal(created));
           await markSynced(created.id, new Date().toISOString());
           await dequeue(item.client_op_id);
         } else if (item.kind === 'timer.delete') {
           const { id } = JSON.parse(item.payload);
-          await deleteTimer(id);
+          try {
+            await deleteTimer(id);
+          } catch (e) {
+            // 404 means the row only existed locally (never synced) —
+            // safe to drop the queued delete and the local row.
+            if (String(e).includes('404')) {
+              await hardDeleteTimer(id);
+            } else {
+              throw e;
+            }
+          }
           await dequeue(item.client_op_id);
         }
       } catch (e) {

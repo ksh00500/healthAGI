@@ -98,3 +98,8 @@ export async function listPending(): Promise<LocalTimer[]> {
     "SELECT * FROM recovery_timers WHERE pending_op IS NOT NULL",
   );
 }
+
+export async function hardDeleteTimer(id: string): Promise<void> {
+  const db = await openDB();
+  await db.runAsync('DELETE FROM recovery_timers WHERE id = ?', [id]);
+}
